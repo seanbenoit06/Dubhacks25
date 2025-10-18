@@ -41,7 +41,8 @@ async def health_check():
     }
 
 
-# Import and include routers (will be added later)
+# Import and include routers
+# API routers will be added here as they are implemented
 # from app.api import sessions, websocket
 # app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])
 # app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
