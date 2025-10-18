@@ -6,8 +6,6 @@ mp_pose = mp.solutions.pose
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 
-# Keep gesture model variable for future use
-gesture_model = "/Users/kadenwu/Downloads/gesture_recognizer.task"
 
 # Open webcam (0 = default camera)
 cap = cv2.VideoCapture(0)
@@ -104,13 +102,13 @@ with mp_pose.Pose(
                             elbow_y = int(pose_results.pose_landmarks.landmark[14].y * h)
                             cv2.line(frame, (wrist_x, wrist_y), (elbow_x, elbow_y), (255, 0, 255), 2)
 
-        # Display gesture information
+        # Display hand handedness information
         if hand_results.multi_handedness:
             for idx, handedness in enumerate(hand_results.multi_handedness):
                 label = handedness.classification[0].label
                 confidence = handedness.classification[0].score
                 cv2.putText(frame, f"{label} Hand: {confidence:.2f}", 
-                           (10, 30 + idx * 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                           (10, 150 + idx * 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
         # Flip horizontally for a mirror-like effect
         frame = cv2.flip(frame, 1)
