@@ -66,3 +66,9 @@ uploads/
 *.mp4
 *.avi
 *.mov
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# MediaPipe model files (large files)
+*.task
