@@ -1,7 +1,7 @@
 """
 Feedback Generation Service
 
-Converts technical pose comparison data into human-readable feedback using LLM.
+Converts technical pose comparison data into human-readable feedback using OpenAI LLM.
 This service is called AFTER dance sections complete (batch processing, not real-time).
 """
 from typing import List, Dict, Any, Optional
@@ -15,6 +15,9 @@ class FeedbackGenerationService:
 
     Takes technical error data (angles, positions) and converts them into
     friendly, actionable feedback using OpenAI's GPT models.
+
+    This is an INTERNAL backend service - NOT exposed to the API directly.
+    API functions call this service after dance sections complete.
     """
 
     def __init__(self):
@@ -77,7 +80,7 @@ class FeedbackGenerationService:
 
     def _generate_single_feedback(self, segment: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Generate feedback for a single problem segment using LLM.
+        Generate feedback for a single problem segment using OpenAI LLM.
 
         Args:
             segment: Problem segment data with errors and timing

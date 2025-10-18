@@ -161,6 +161,13 @@ Two people doing same pose with different arm lengths → same angles, different
 Angles capture "shape" of pose independent of size
 
 6. LLM INTEGRATION ARCHITECTURE
+LLM Provider: OpenAI (GPT-4o-mini)
+This project uses OpenAI exclusively for LLM-powered feedback generation.
+✅ Simple API integration
+✅ Fast setup for hackathon timeline
+✅ Cost-effective for demo scale
+✅ Reliable performance with conversational responses
+
 When to Call LLM:
 NOT during real-time processing (too slow, 2-5 second latency)
 ONLY after dance section completes (batch processing)
@@ -197,19 +204,6 @@ Output Format:
   "severity": "medium",
   "body_parts": ["left_arm", "elbow"]
 }
-
-OpenAI vs AWS Bedrock Decision:
-OpenAI (GPT-4o-mini):
-✅ Easier to use (simpler API)
-✅ Better for quick hackathon setup
-✅ Cheaper for small volume
-❌ Need API key / billing
-AWS Bedrock (Claude Sonnet):
-✅ Hackathon provides free credits
-✅ Slightly better at structured outputs
-✅ More impressive to mention AWS integration
-❌ More complex setup (AWS credentials, IAM)
-Recommendation: Start with OpenAI for speed, switch to Bedrock if you have time and want to use the hackathon credits.
 
 7. CAMERA INTEGRATION WITH REACT
 Browser WebRTC API

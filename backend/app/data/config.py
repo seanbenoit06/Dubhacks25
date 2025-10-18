@@ -12,11 +12,6 @@ class Settings(BaseSettings):
     # OpenAI Configuration
     openai_api_key: str = ""
 
-    # AWS Bedrock Configuration (alternative)
-    aws_access_key_id: str = ""
-    aws_secret_access_key: str = ""
-    aws_region: str = "us-east-1"
-
     # Server Configuration
     host: str = "0.0.0.0"
     port: int = 8000
