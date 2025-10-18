@@ -8,6 +8,7 @@ FastAPI backend for real-time pose detection and dance feedback.
 ```bash
 python -m venv venv
 ```
+for us -> *conda create --name myenv python=3.10*
 
 2. Activate virtual environment:
 ```bash
@@ -17,6 +18,8 @@ python -m venv venv
 # Linux/Mac
 source venv/bin/activate
 ```
+
+for us -> *conda activate myenv*
 
 3. Install dependencies:
 ```bash
