@@ -9,3 +9,10 @@ python-dotenv==1.0.0
 pydantic==2.5.0
 pydantic-settings==2.1.0
 websockets==12.0
+
+# Pose comparison and DTW functionality
+dtaidistance==2.3.10
+
+# Audio processing for synchronized interface
+pydub==0.25.1
+simpleaudio==1.0.4
