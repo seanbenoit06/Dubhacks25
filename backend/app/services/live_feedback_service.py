@@ -252,18 +252,14 @@ class LiveFeedbackService:
 
     def _generate_live_feedback(self, snapshot: SnapshotData) -> Dict[str, Any]:
         """
-        Generate feedback using OpenAI Vision API.
+        Generate feedback using OpenAI Chat API with pose data.
 
-        This is the core LLM interaction for live feedback.
+        chats with pose data instead of images for efficiency.
         """
-        # Build prompt with context
-        prompt = self._build_live_prompt(snapshot)
+        # Build prompt with context and pose data
+        prompt = self._build_live_prompt_with_pose_data(snapshot)
 
-        # Prepare image for vision API
-        # The snapshot.frame_base64 is already base64 encoded
-        image_url = f"data:image/jpeg;base64,{snapshot.frame_base64}"
-
-        # Call OpenAI Vision API
+        # Call OpenAI Chat API (no vision needed)
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
@@ -277,24 +273,11 @@ class LiveFeedbackService:
                 },
                 {
                     "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": prompt
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": image_url,
-                                "detail": "low"  # Use low detail for faster processing
-                            }
-                        }
-                    ]
+                    "content": prompt
                 }
             ],
-            max_tokens=self.max_tokens,
-            temperature=self.temperature,
-            timeout=self.llm_timeout
+            max_tokens=100,
+            temperature=0.7
         )
 
         feedback_text = response.choices[0].message.content.strip()
@@ -315,7 +298,7 @@ class LiveFeedbackService:
             "context": self.context.get_summary()
         }
 
-    def _build_live_prompt(self, snapshot: SnapshotData) -> str:
+    def _build_live_prompt_with_pose_data(self, snapshot: SnapshotData) -> str:
         """
         Build prompt for live feedback generation.
 
