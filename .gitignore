@@ -67,6 +67,9 @@ uploads/
 *.avi
 *.mov
 
+# Frontend data files
+frontend/src/data/*.mp4
+
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
