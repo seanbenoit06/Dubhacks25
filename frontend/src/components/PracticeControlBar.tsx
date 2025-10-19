@@ -16,6 +16,8 @@ interface PracticeControlBarProps {
   onGhostOpacityChange: (value: number) => void;
   mirrorCamera: boolean;
   onMirrorToggle: () => void;
+  mirrorVideo?: boolean;
+  onMirrorVideoToggle?: () => void;
 }
 
 export function PracticeControlBar({
@@ -30,6 +32,8 @@ export function PracticeControlBar({
   onGhostOpacityChange,
   mirrorCamera,
   onMirrorToggle,
+  mirrorVideo = false,
+  onMirrorVideoToggle,
 }: PracticeControlBarProps) {
   const [loopCount, setLoopCount] = useState<8 | 16>(8);
   const [speed, setSpeed] = useState<number>(1);
@@ -119,7 +123,7 @@ export function PracticeControlBar({
             )}
           </div>
 
-          {/* Mirror */}
+          {/* Mirror Camera */}
           <button
             onClick={onMirrorToggle}
             className={`px-3 py-1.5 rounded-lg border transition-all text-xs flex items-center gap-1 ${
@@ -129,8 +133,23 @@ export function PracticeControlBar({
             }`}
           >
             <FlipHorizontal2 className="w-3 h-3" />
-            Mirror
+            Mirror Cam
           </button>
+
+          {/* Mirror Video */}
+          {onMirrorVideoToggle && (
+            <button
+              onClick={onMirrorVideoToggle}
+              className={`px-3 py-1.5 rounded-lg border transition-all text-xs flex items-center gap-1 ${
+                mirrorVideo
+                  ? 'bg-purple-500/20 border-purple-500/50 text-purple-400'
+                  : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <FlipHorizontal2 className="w-3 h-3" />
+              Mirror Video
+            </button>
+          )}
 
           {/* Recalibrate */}
           <button

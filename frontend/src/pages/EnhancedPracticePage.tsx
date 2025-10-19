@@ -9,7 +9,7 @@ import { VideoPlayer } from '../components/VideoPlayer';
 import { LiveCameraView } from '../components/LiveCameraView';
 import { LiveFeedback } from '../components/LiveFeedback';
 import { PracticeControlBar } from '../components/PracticeControlBar';
-import { useVideoBeatSync } from '../hooks/useVideoBeatSync';
+// Removed useVideoBeatSync - using time-based progress instead
 import { useSnapshotCapture } from '../hooks/useSnapshotCapture';
 import { mockFeedbackService, MockFeedbackResponse } from '../services/mockFeedbackService';
 
@@ -33,6 +33,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   // Camera and feedback state
   const [ghostOpacity, setGhostOpacity] = useState(60);
   const [mirrorCamera, setMirrorCamera] = useState(true);
+  const [mirrorVideo, setMirrorVideo] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [currentFeedback, setCurrentFeedback] = useState<MockFeedbackResponse | null>(null);
@@ -45,20 +46,10 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
     return <div>Routine not found</div>;
   }
 
-  const totalBeats = routine.segments.reduce((acc, seg) => acc + seg.beats, 0);
-  const errorRegions = [8, 9, 15, 23, 24];
-
-  // Use video-beat sync hook
-  const { state: beatState } = useVideoBeatSync({
-    bpm: routine.bpm,
-    totalBeats,
-    videoCurrentTime,
-    videoDuration,
-    onBeatChange: (beat) => {
-      // Beat changes are handled automatically by the hook
-      console.log('Beat changed to:', beat);
-    },
-  });
+  // Time-based progress instead of beats
+  const progressPercentage = videoDuration > 0 ? (videoCurrentTime / videoDuration) * 100 : 0;
+  const formattedCurrentTime = formatTime(videoCurrentTime);
+  const formattedDuration = formatTime(videoDuration);
 
   // Use snapshot capture hook
   const {
@@ -110,12 +101,11 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
     console.log('Timeline Debug:', {
       videoCurrentTime,
       videoDuration,
-      currentBeat: beatState.currentBeat,
-      totalBeats,
-      bpm: routine.bpm,
-      beatProgress: beatState.beatProgress
+      progressPercentage,
+      formattedCurrentTime,
+      formattedDuration
     });
-  }, [videoCurrentTime, beatState.currentBeat, beatState.beatProgress]);
+  }, [videoCurrentTime, videoDuration, progressPercentage]);
 
   const handleStart = () => {
     setCountdown(3);
@@ -228,47 +218,34 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
       {/* Main Content */}
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="relative w-full max-w-[1159.2px] h-full">
-          {/* Beat Timeline at Top */}
+          {/* Time Progress Bar at Top */}
           <div className="absolute bg-gradient-to-b from-[#1a1d2e] h-[80px] left-0 to-[rgba(0,0,0,0)] top-0 w-full">
             <div aria-hidden="true" className="absolute border-[0px_0px_0.8px] border-[rgba(255,255,255,0.05)] border-solid inset-0 pointer-events-none" />
           
-            {/* Segments */}
-            <div className="absolute h-[79.2px] left-0 top-0 w-full flex">
-              {routine.segments.map((segment, idx) => {
-                const width = (segment.beats / totalBeats) * 100;
-                return (
-                  <div
-                    key={segment.id}
-                    className="box-border h-[79.2px] relative"
-                    style={{ width: `${width}%` }}
-                  >
-                    <div aria-hidden="true" className="absolute border-[0px_0.8px_0px_0px] border-[rgba(255,255,255,0.05)] border-solid inset-0 pointer-events-none" />
-                    <div className="absolute left-[12px] top-[12px]">
-                      <p className="font-['Arimo',_sans-serif] font-normal leading-[16px] text-[#99a1af] text-[12px] tracking-[0.3px] uppercase">
-                        {segment.name}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+            {/* Progress Bar Background */}
+            <div className="absolute h-[79.2px] left-0 top-0 w-full">
+              <div className="absolute inset-0 bg-black/20 rounded-sm" />
             </div>
 
-            {/* Beat Ticks */}
-            <div className="absolute h-[79.2px] left-0 top-0 w-full flex">
-              {Array.from({ length: totalBeats }).map((_, beatIdx) => {
-                const isStrongBeat = beatIdx % 4 === 0;
-                const isErrorBeat = errorRegions.includes(beatIdx);
-                const position = (beatIdx / totalBeats) * 100;
+            {/* Progress Bar Fill */}
+            <div
+              className="absolute bg-gradient-to-r from-cyan-500/30 to-purple-500/30 h-[79.2px] transition-all duration-100"
+              style={{ width: `${progressPercentage}%` }}
+            />
+
+            {/* Time Markers (every 10 seconds) */}
+            <div className="absolute h-[79.2px] left-0 top-0 w-full">
+              {videoDuration > 0 && Array.from({ length: Math.ceil(videoDuration / 10) }).map((_, idx) => {
+                const time = idx * 10;
+                const position = (time / videoDuration) * 100;
                 
                 return (
                   <div
-                    key={beatIdx}
+                    key={idx}
                     className={`absolute ${
-                      isErrorBeat
-                        ? 'bg-[#fb2c36] h-[32px] shadow-[0px_0px_8px_0px_rgba(239,68,68,0.6)] top-[35.2px]'
-                        : isStrongBeat
-                        ? 'bg-[rgba(255,255,255,0.4)] h-[24px] top-[43.2px]'
-                        : 'bg-[rgba(255,255,255,0.15)] h-[12px] top-[55.2px]'
+                      time % 30 === 0
+                        ? 'bg-[rgba(255,255,255,0.4)] h-[24px] top-[43.2px]' // Every 30 seconds
+                        : 'bg-[rgba(255,255,255,0.15)] h-[12px] top-[55.2px]' // Every 10 seconds
                     } w-px`}
                     style={{ left: `${position}%` }}
                   />
@@ -279,20 +256,20 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
             {/* Playhead */}
             <div
               className="absolute bg-[#00d3f3] h-[79.2px] shadow-[0px_0px_20px_0px_rgba(34,211,238,0.8),0px_0px_40px_0px_rgba(34,211,238,0.4)] top-0 w-[3px] transition-all duration-100"
-              style={{ left: `${Math.min((beatState.currentBeat / totalBeats) * 100, 100)}%` }}
+              style={{ left: `${progressPercentage}%` }}
             >
               <div className="bg-[#00d3f3] h-[12px] rounded-[2.68435e+07px] shadow-[0px_0px_12px_0px_#22d3ee,0px_0px_24px_0px_rgba(34,211,238,0.6)] w-full" />
             </div>
 
-            {/* Beat Counter */}
+            {/* Time Display */}
             <div className="absolute h-[15.988px] left-[16px] top-[51.2px]">
               <p className="font-['Arimo',_sans-serif] font-normal leading-[16px] text-[#6a7282] text-[12px]">
-                Beat {beatState.currentBeat}
+                {formattedCurrentTime}
               </p>
             </div>
             <div className="absolute h-[15.988px] right-[16px] top-[51.2px]">
               <p className="font-['Arimo',_sans-serif] font-normal leading-[16px] text-[#6a7282] text-[12px]">
-                {totalBeats} beats total
+                {formattedDuration}
               </p>
             </div>
           </div>
@@ -313,7 +290,8 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
                   onSnapshot={handleSnapshot}
                   autoSnapshot={hasStarted && isCapturing}
                   snapshotInterval={500}
-                  showMirrorButton={false}
+                  showMirrorButton={true}
+                  mirrorButtonPosition="top-right"
                 />
               </div>
               <div aria-hidden="true" className="absolute border-[0.8px] border-[rgba(255,255,255,0.05)] border-solid inset-0 pointer-events-none rounded-[10px]" />
@@ -348,13 +326,28 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
                   onPlayPause={() => setIsPlaying(!isPlaying)}
                   onRestart={() => {
                     setVideoCurrentTime(0);
-                    setIsPlaying(true);
+                    setIsPlaying(false);
+                    setCurrentFeedback(null);
+                    setOverallAccuracy(82);
                   }}
                   playbackRate={playbackRate}
-                  mirror={false}
+                  mirror={mirrorVideo}
                   showSkeleton={showSkeleton}
                   className="w-full h-full"
                 />
+                
+                {/* Reference Video Mirror Button */}
+                <div className="absolute top-2 right-2 z-10">
+                  <button
+                    onClick={() => setMirrorVideo(!mirrorVideo)}
+                    className="px-3 py-1.5 bg-black/50 hover:bg-black/70 border border-white/20 rounded-lg text-white text-xs flex items-center gap-1 transition-all backdrop-blur-sm"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {mirrorVideo ? 'Unmirror' : 'Mirror'}
+                  </button>
+                </div>
               </div>
               <div aria-hidden="true" className="absolute border-[0.8px] border-[rgba(255,255,255,0.05)] border-solid inset-0 pointer-events-none rounded-[10px]" />
             </div>
@@ -367,7 +360,15 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
               onPlayPause={() => setIsPlaying(!isPlaying)}
               onRestart={() => {
                 setVideoCurrentTime(0);
-                setIsPlaying(true);
+                setIsPlaying(false);
+                // Reset feedback and accuracy
+                setCurrentFeedback(null);
+                setOverallAccuracy(82);
+                // Stop and restart capture
+                stopAutoCapture();
+                setTimeout(() => {
+                  startAutoCapture();
+                }, 100);
               }}
               onRecalibrate={() => {
                 // Recalibrate camera
@@ -380,10 +381,21 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
               onGhostOpacityChange={setGhostOpacity}
               mirrorCamera={mirrorCamera}
               onMirrorToggle={() => setMirrorCamera(!mirrorCamera)}
+              mirrorVideo={mirrorVideo}
+              onMirrorVideoToggle={() => setMirrorVideo(!mirrorVideo)}
             />
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+// Helper function to format time
+function formatTime(seconds: number): string {
+  if (!isFinite(seconds)) return '0:00';
+  
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
