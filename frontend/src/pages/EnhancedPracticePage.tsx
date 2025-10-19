@@ -11,7 +11,9 @@ import { LiveFeedback } from '../components/LiveFeedback';
 import { PracticeControlBar } from '../components/PracticeControlBar';
 // Removed useVideoBeatSync - using time-based progress instead
 import { useSnapshotCapture } from '../hooks/useSnapshotCapture';
+import { useDanceSession } from '../hooks/useDanceSession';
 import { mockFeedbackService, MockFeedbackResponse } from '../services/mockFeedbackService';
+import { ProcessSnapshotResponse } from '../services/danceAPI';
 
 interface EnhancedPracticePageProps {
   routineId: string;
@@ -37,7 +39,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   const [mirrorVideo, setMirrorVideo] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [currentFeedback, setCurrentFeedback] = useState<MockFeedbackResponse | null>(null);
+  const [currentFeedback, setCurrentFeedback] = useState<ProcessSnapshotResponse | null>(null);
   const [overallAccuracy, setOverallAccuracy] = useState(82);
   const [showCongratulations, setShowCongratulations] = useState(false);
   const [videoEnded, setVideoEnded] = useState(false);
@@ -159,17 +161,24 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
     }
   });
 
+  // Dance session hook
+  const {
+    sessionId,
+    isSessionActive,
+    processSnapshot,
+    startDanceSession,
+    endDanceSession,
+    loadReferenceVideo,
+    testBackendConnection
+  } = useDanceSession();
+
   // Handle camera snapshot
   const handleSnapshot = async (snapshot: string) => {
-    if (!hasStarted) return;
+    if (!hasStarted || !isSessionActive) return;
 
     try {
-      // Process with mock feedback service (replace with real API later)
-      const feedback = await mockFeedbackService.processSnapshot(snapshot, {
-        baseScore: 0.75,
-        feedbackFrequency: 0.3,
-        includeErrors: true
-      });
+      // Process with real backend API
+      const feedback = await processSnapshot(snapshot);
 
       setCurrentFeedback(feedback);
       
@@ -211,8 +220,14 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
     }
   }, [isPlaying, hasStarted, videoEnded, resumeProcessing, pauseProcessing, startAutoCapture, stopAutoCapture]);
 
-  const handleStart = () => {
+  const handleStart = async () => {
     setCountdown(3);
+    try {
+      await startDanceSession();
+      await loadReferenceVideo(routine.title.toLowerCase());
+    } catch (error) {
+      console.error('Error starting dance session:', error);
+    }
   };
 
   useEffect(() => {
@@ -234,6 +249,11 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
 
     return () => clearTimeout(timer);
   }, [countdown, startAutoCapture]);
+
+  // Test backend connection on mount
+  useEffect(() => {
+    testBackendConnection();
+  }, [testBackendConnection]);
 
   // Generate current tip from feedback
   const currentTip: PracticeTip | undefined = currentFeedback?.live_feedback ? {
@@ -481,7 +501,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
                 <LiveCameraView 
                   className="absolute inset-0 rounded-[inherit] w-full h-full"
                   onSnapshot={handleSnapshot}
-                  autoSnapshot={hasStarted && isCapturing && isPlaying}
+                  autoSnapshot={hasStarted && isCapturing}
                   snapshotInterval={500}
                   showMirrorButton={true}
                   mirrorButtonPosition="top-right"
