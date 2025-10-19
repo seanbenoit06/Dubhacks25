@@ -16,6 +16,7 @@ interface VideoPlayerProps {
   onLoadedMetadata: (duration: number) => void;
   onPlayPause: () => void;
   onRestart: () => void;
+  onSeek?: (time: number) => void;
   playbackRate?: number;
   mirror?: boolean;
   showSkeleton?: boolean;
@@ -31,6 +32,7 @@ export function VideoPlayer({
   onLoadedMetadata,
   onPlayPause,
   onRestart,
+  onSeek,
   playbackRate = 1,
   mirror = false,
   showSkeleton = false,
@@ -39,6 +41,7 @@ export function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSeeking, setIsSeeking] = useState(false);
 
   // Sync external play/pause state with video element
   useEffect(() => {
@@ -58,6 +61,20 @@ export function VideoPlayer({
     }
   }, [playbackRate]);
 
+  // Sync external currentTime prop changes with video element
+  useEffect(() => {
+    if (videoRef.current && !isSeeking) {
+      const video = videoRef.current;
+      const timeDiff = Math.abs(video.currentTime - currentTime);
+      
+      // Only update if there's a significant difference to avoid conflicts
+      if (timeDiff > 0.1) {
+        console.log(`Syncing video time: ${video.currentTime} -> ${currentTime}`);
+        video.currentTime = currentTime;
+      }
+    }
+  }, [currentTime, isSeeking]);
+
   // Handle video events
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
@@ -67,7 +84,7 @@ export function VideoPlayer({
   };
 
   const handleTimeUpdate = () => {
-    if (videoRef.current) {
+    if (videoRef.current && !isSeeking) {
       onTimeUpdate(videoRef.current.currentTime);
     }
   };
@@ -78,6 +95,20 @@ export function VideoPlayer({
 
   const handleCanPlay = () => {
     setIsLoaded(true);
+  };
+
+  // Internal seek handler - only updates video element
+  const handleSeek = (time: number) => {
+    if (videoRef.current) {
+      console.log(`Seeking to: ${time}`);
+      setIsSeeking(true);
+      videoRef.current.currentTime = time;
+      
+      // Reset seeking flag after a short delay
+      setTimeout(() => {
+        setIsSeeking(false);
+      }, 100);
+    }
   };
 
   // Handle restart
@@ -150,7 +181,16 @@ export function VideoPlayer({
 
         {/* Progress Bar */}
         <div className="mt-2">
-          <div className="w-full bg-white/20 rounded-full h-1">
+          <div 
+            className="w-full bg-white/20 rounded-full h-1 cursor-pointer"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const clickX = e.clientX - rect.left;
+              const clickPercentage = clickX / rect.width;
+              const newTime = clickPercentage * duration;
+              handleSeek(newTime);
+            }}
+          >
             <div
               className="bg-white rounded-full h-1 transition-all duration-100"
               style={{

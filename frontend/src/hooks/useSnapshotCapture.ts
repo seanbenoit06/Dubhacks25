@@ -21,6 +21,8 @@ interface UseSnapshotCaptureReturn {
   isCapturing: boolean;
   startAutoCapture: () => void;
   stopAutoCapture: () => void;
+  pauseProcessing: () => void;
+  resumeProcessing: () => void;
 }
 
 export function useSnapshotCapture(options: UseSnapshotCaptureOptions = {}): UseSnapshotCaptureReturn {
@@ -133,6 +135,14 @@ export function useSnapshotCapture(options: UseSnapshotCaptureOptions = {}): Use
     }
   }, []);
 
+  const pauseProcessing = useCallback(() => {
+    snapshotService.pauseProcessing();
+  }, []);
+
+  const resumeProcessing = useCallback(() => {
+    snapshotService.resumeProcessing();
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -149,6 +159,8 @@ export function useSnapshotCapture(options: UseSnapshotCaptureOptions = {}): Use
     clearQueue,
     isCapturing,
     startAutoCapture,
-    stopAutoCapture
+    stopAutoCapture,
+    pauseProcessing,
+    resumeProcessing
   };
 }

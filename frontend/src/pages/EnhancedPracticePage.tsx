@@ -29,6 +29,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showSkeleton, setShowSkeleton] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
 
   // Camera and feedback state
   const [ghostOpacity, setGhostOpacity] = useState(60);
@@ -51,6 +52,31 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   const formattedCurrentTime = formatTime(videoCurrentTime);
   const formattedDuration = formatTime(videoDuration);
 
+  // Handle video seek
+  const handleVideoSeek = (time: number) => {
+    console.log(`Seeking to: ${time}`);
+    setIsSeeking(true);
+    setVideoCurrentTime(time);
+    
+    // Update the video element directly
+    const videoElement = document.querySelector('video') as HTMLVideoElement;
+    if (videoElement) {
+      videoElement.currentTime = time;
+    }
+    
+    // Reset seeking flag after a short delay
+    setTimeout(() => {
+      setIsSeeking(false);
+    }, 100);
+  };
+
+  // Handle video time update (ignore during seeking)
+  const handleVideoTimeUpdate = (time: number) => {
+    if (!isSeeking) {
+      setVideoCurrentTime(time);
+    }
+  };
+
   // Handle timeline click for seeking
   const handleTimelineClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const timeline = event.currentTarget;
@@ -59,12 +85,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
     const clickPercentage = clickX / rect.width;
     const newTime = clickPercentage * videoDuration;
     
-    setVideoCurrentTime(newTime);
-    // Update the video element directly
-    const videoElement = document.querySelector('video') as HTMLVideoElement;
-    if (videoElement) {
-      videoElement.currentTime = newTime;
-    }
+    handleVideoSeek(newTime);
   };
 
   // Handle timeline hover for preview
@@ -86,9 +107,11 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
     queueStatus,
     isCapturing,
     startAutoCapture,
-    stopAutoCapture
+    stopAutoCapture,
+    pauseProcessing,
+    resumeProcessing
   } = useSnapshotCapture({
-    autoCapture: true,
+    autoCapture: isPlaying && hasStarted,
     captureInterval: 500,
     onSnapshotProcessed: (result) => {
       console.log('Snapshot processed:', result);
@@ -134,6 +157,21 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
       formattedDuration
     });
   }, [videoCurrentTime, videoDuration, progressPercentage]);
+
+  // Control capture based on play/pause state
+  useEffect(() => {
+    if (hasStarted) {
+      if (isPlaying) {
+        console.log('Video playing - resuming capture');
+        resumeProcessing();
+        startAutoCapture();
+      } else {
+        console.log('Video paused - pausing capture');
+        pauseProcessing();
+        stopAutoCapture();
+      }
+    }
+  }, [isPlaying, hasStarted, resumeProcessing, pauseProcessing, startAutoCapture, stopAutoCapture]);
 
   const handleStart = () => {
     setCountdown(3);
@@ -320,7 +358,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
                 <LiveCameraView 
                   className="absolute inset-0 rounded-[inherit] w-full h-full"
                   onSnapshot={handleSnapshot}
-                  autoSnapshot={hasStarted && isCapturing}
+                  autoSnapshot={hasStarted && isCapturing && isPlaying}
                   snapshotInterval={500}
                   showMirrorButton={true}
                   mirrorButtonPosition="top-right"
@@ -353,13 +391,14 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
                   isPlaying={isPlaying}
                   currentTime={videoCurrentTime}
                   duration={videoDuration}
-                  onTimeUpdate={setVideoCurrentTime}
+                  onTimeUpdate={handleVideoTimeUpdate}
                   onLoadedMetadata={setVideoDuration}
                   onPlayPause={() => setIsPlaying(!isPlaying)}
+                  onSeek={handleVideoSeek}
                   onRestart={() => {
                     // Go back 10 seconds instead of to beginning
                     const newTime = Math.max(0, videoCurrentTime - 10);
-                    setVideoCurrentTime(newTime);
+                    handleVideoSeek(newTime);
                     setIsPlaying(false);
                     setCurrentFeedback(null);
                     setOverallAccuracy(82);
@@ -395,13 +434,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
               onRestart={() => {
                 // Go back 10 seconds instead of to beginning
                 const newTime = Math.max(0, videoCurrentTime - 10);
-                setVideoCurrentTime(newTime);
-                
-                // Update the video element directly
-                const videoElement = document.querySelector('video') as HTMLVideoElement;
-                if (videoElement) {
-                  videoElement.currentTime = newTime;
-                }
+                handleVideoSeek(newTime);
                 
                 // Pause the video
                 setIsPlaying(false);

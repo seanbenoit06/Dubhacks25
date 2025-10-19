@@ -20,13 +20,15 @@ export interface SnapshotQueue {
   snapshots: SnapshotData[];
   maxSize: number;
   isProcessing: boolean;
+  isPaused: boolean;
 }
 
 class SnapshotService {
   private queue: SnapshotQueue = {
     snapshots: [],
     maxSize: 100, // Keep last 100 snapshots
-    isProcessing: false
+    isProcessing: false,
+    isPaused: false
   };
 
   private apiEndpoint: string = 'http://localhost:8000/api/analyze-pose';
@@ -56,7 +58,7 @@ class SnapshotService {
    * Process snapshots by sending to API
    */
   async processSnapshots(): Promise<void> {
-    if (this.queue.isProcessing || this.queue.snapshots.length === 0) {
+    if (this.queue.isProcessing || this.queue.snapshots.length === 0 || this.queue.isPaused) {
       return;
     }
 
@@ -160,6 +162,22 @@ class SnapshotService {
   clearQueue(): void {
     this.queue.snapshots = [];
     console.log('Snapshot queue cleared');
+  }
+
+  /**
+   * Pause snapshot processing
+   */
+  pauseProcessing(): void {
+    this.queue.isPaused = true;
+    console.log('Snapshot processing paused');
+  }
+
+  /**
+   * Resume snapshot processing
+   */
+  resumeProcessing(): void {
+    this.queue.isPaused = false;
+    console.log('Snapshot processing resumed');
   }
 
   /**
