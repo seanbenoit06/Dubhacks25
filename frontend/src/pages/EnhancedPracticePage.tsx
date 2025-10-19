@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { mockRoutines } from '../data/mockData';
 import { PracticeTip } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -15,12 +15,11 @@ import { mockFeedbackService, MockFeedbackResponse } from '../services/mockFeedb
 
 interface EnhancedPracticePageProps {
   routineId: string;
-  onBack: () => void;
   onReview: () => void;
   onSettings: () => void;
 }
 
-export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }: EnhancedPracticePageProps) {
+export function EnhancedPracticePage({ routineId, onReview, onSettings }: EnhancedPracticePageProps) {
   const routine = mockRoutines.find((r) => r.id === routineId);
   
   // Video state
@@ -28,12 +27,12 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   const [videoDuration, setVideoDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [showSkeleton, setShowSkeleton] = useState(false);
+  const [showSkeleton] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
 
   // Camera and feedback state
   const [ghostOpacity, setGhostOpacity] = useState(60);
-  const [mirrorCamera, setMirrorCamera] = useState(true);
+  // const [mirrorCamera] = useState(true);
   const [mirrorVideo, setMirrorVideo] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -117,22 +116,28 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   const handleTimelineClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if (videoEnded) return; // Don't allow seeking after video ends
     
+    event.preventDefault();
+    event.stopPropagation();
+    
+    console.log('Timeline clicked!');
+    
     const timeline = event.currentTarget;
     const rect = timeline.getBoundingClientRect();
     const clickX = event.clientX - rect.left;
     const clickPercentage = clickX / rect.width;
     const newTime = clickPercentage * videoDuration;
     
+    console.log('Seeking to:', newTime, 'seconds');
     handleVideoSeek(newTime);
   };
 
   // Handle timeline hover for preview
-  const handleTimelineHover = (event: React.MouseEvent<HTMLDivElement>) => {
-    const timeline = event.currentTarget;
-    const rect = timeline.getBoundingClientRect();
-    const hoverX = event.clientX - rect.left;
-    const hoverPercentage = hoverX / rect.width;
-    const hoverTime = hoverPercentage * videoDuration;
+  const handleTimelineHover = (_event: React.MouseEvent<HTMLDivElement>) => {
+    // const timeline = event.currentTarget;
+    // const rect = timeline.getBoundingClientRect();
+    // const hoverX = event.clientX - rect.left;
+    // const hoverPercentage = hoverX / rect.width;
+    // const hoverTime = hoverPercentage * videoDuration;
     
     // You could add a tooltip here showing the hover time
     // For now, we'll just update the cursor
@@ -140,9 +145,6 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
 
   // Use snapshot capture hook
   const {
-    captureSnapshot,
-    processQueue,
-    queueStatus,
     isCapturing,
     startAutoCapture,
     stopAutoCapture,
@@ -243,7 +245,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   } : undefined;
 
   return (
-    <div className="relative h-screen w-full overflow-hidden" style={{ backgroundImage: "linear-gradient(rgb(11, 14, 22) 0%, rgb(15, 18, 25) 50%, rgb(18, 22, 38) 100%), linear-gradient(90deg, rgb(255, 255, 255) 0%, rgb(255, 255, 255) 100%)" }}>
+    <div className="relative h-screen w-full" style={{ backgroundImage: "linear-gradient(rgb(11, 14, 22) 0%, rgb(15, 18, 25) 50%, rgb(18, 22, 38) 100%), linear-gradient(90deg, rgb(255, 255, 255) 0%, rgb(255, 255, 255) 100%)" }}>
       {/* Skip to Summary Button */}
       {hasStarted && (
         <button
@@ -478,7 +480,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
                   </p>
                 </div>
                 {/* Live Camera Feed */}
-                <LiveCameraView 
+                <LiveCameraView
                   className="absolute inset-0 rounded-[inherit] w-full h-full"
                   onSnapshot={handleSnapshot}
                   autoSnapshot={hasStarted && isCapturing && isPlaying}
@@ -516,12 +518,11 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
                   duration={videoDuration}
                   onTimeUpdate={handleVideoTimeUpdate}
                   onLoadedMetadata={setVideoDuration}
-                  onPlayPause={videoEnded ? undefined : () => setIsPlaying(!isPlaying)}
-                  onSeek={videoEnded ? undefined : handleVideoSeek}
-                  onRestart={videoEnded ? undefined : () => {
+                  onPlayPause={() => setIsPlaying(!isPlaying)}
+                  onRestart={() => {
                     // Go back 10 seconds instead of to beginning
                     const newTime = Math.max(0, videoCurrentTime - 10);
-                    handleVideoSeek(newTime);
+                    setVideoCurrentTime(newTime);
                     setIsPlaying(false);
                     setCurrentFeedback(null);
                     setOverallAccuracy(82);
@@ -531,7 +532,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
                   showSkeleton={showSkeleton}
                   className="w-full h-full"
                 />
-                
+
                 {/* Reference Video Mirror Button */}
                 <div className="absolute top-2 right-2 z-10">
                   <button
@@ -553,11 +554,17 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
           <div className="absolute bg-gradient-to-b from-[#0f1219] h-[80.8px] left-0 to-[#0f1219] top-[674.4px] via-50% via-[#13161f] w-full">
             <PracticeControlBar
               isPlaying={isPlaying}
-              onPlayPause={videoEnded ? undefined : () => setIsPlaying(!isPlaying)}
-              onRestart={videoEnded ? undefined : () => {
+              onPlayPause={() => setIsPlaying(!isPlaying)}
+              onRestart={() => {
                 // Go back 10 seconds instead of to beginning
                 const newTime = Math.max(0, videoCurrentTime - 10);
-                handleVideoSeek(newTime);
+                setVideoCurrentTime(newTime);
+                
+                // Update the video element directly
+                const videoElement = document.querySelector('video') as HTMLVideoElement;
+                if (videoElement) {
+                  videoElement.currentTime = newTime;
+                }
                 
                 // Pause the video
                 setIsPlaying(false);
