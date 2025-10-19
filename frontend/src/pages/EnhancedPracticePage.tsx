@@ -135,7 +135,6 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   const currentTip: PracticeTip | undefined = currentFeedback?.live_feedback ? {
     joint: 'General',
     message: currentFeedback.live_feedback,
-    beatIndex: beatState.currentBeat,
   } : undefined;
 
   return (
