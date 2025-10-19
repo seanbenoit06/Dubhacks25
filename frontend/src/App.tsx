@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { LibraryPage } from './pages/LibraryPage';
 import { CalibrationPage } from './pages/CalibrationPage';
-import { PracticePage } from './pages/PracticePage';
+import { EnhancedPracticePage } from './pages/EnhancedPracticePage';
 import { ReviewPage } from './pages/ReviewPage';
 import { LearningModePage } from './pages/LearningModePage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -60,7 +60,7 @@ export default function App() {
 
       case 'practice':
         return selectedRoutineId ? (
-          <PracticePage
+          <EnhancedPracticePage
             routineId={selectedRoutineId}
             onBack={handleBackToLibrary}
             onReview={handleReview}
