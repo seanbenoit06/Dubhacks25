@@ -6,7 +6,7 @@ import math
 from dtaidistance import dtw
 import time
 from collections import deque
-from pose_comparison_config import PoseComparisonConfig, DEFAULT_CONFIG
+from .pose_comparison_config import PoseComparisonConfig, DEFAULT_CONFIG
 
 class PoseComparisonService:
     """
