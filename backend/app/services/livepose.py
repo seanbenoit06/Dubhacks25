@@ -11,6 +11,7 @@ from PIL import Image
 from pose_comparison_service import PoseComparisonService
 from pose_comparison_config import PoseComparisonConfig, DEFAULT_CONFIG, DANCE_CONFIG
 from angle_calculator import AngleCalculator
+from live_feedback_service import LiveFeedbackService, SnapshotData
 from typing import Optional, List, Dict, Any
 import json
 
@@ -93,6 +94,9 @@ comparison_service = None
 current_config = DEFAULT_CONFIG
 angle_calculator = AngleCalculator()
 
+# Initialize live feedback service
+live_feedback_service = LiveFeedbackService()
+
 def load_reference_video(video_name):
     """Load reference video for comparison"""
     global comparison_service
@@ -145,66 +149,45 @@ def generate_live_feedback(comparison_result):
     else:
         return "Let's work on the basics. Try to follow the reference more closely."
 
-def generate_llm_feedback(user_pose_data, comparison_results, reference_pose_data=None):
-    """Generate LLM feedback based on pose data and comparison results"""
-    # Check if we need detailed feedback based on score threshold
-    combined_score = comparison_results.get('combined_score', 0.0)
-    
-    if combined_score >= current_config.min_score_threshold:
-        return f"Great pose! Your similarity score is {combined_score:.1%}. Keep it up!"
-    
-    # Only provide detailed feedback if score is below threshold
-    feedback_parts = []
-    
-    # Add score information
-    feedback_parts.append(f"Current similarity: {combined_score:.1%} (pose: {comparison_results.get('pose_score', 0):.1%}, motion: {comparison_results.get('motion_score', 0):.1%})")
-    
-    # Add angle differences if reference data is available
-    if reference_pose_data and 'angles' in reference_pose_data:
-        user_angles = user_pose_data.get('angles', {})
-        ref_angles = reference_pose_data.get('angles', {})
+def generate_llm_feedback(image_data, comparison_results, user_pose_data=None, reference_pose_data=None):
+    """Generate LLM feedback using LiveFeedbackService"""
+    try:
+        # Convert pose comparison data to SnapshotData format
+        snapshot_data = SnapshotData(
+            timestamp=time.time(),
+            frame_base64=image_data,  # Already base64 encoded
+            pose_similarity=comparison_results.get('pose_score', 0.0),
+            motion_similarity=comparison_results.get('motion_score', 0.0),
+            combined_score=comparison_results.get('combined_score', 0.0),
+            errors=[],  # TODO: Convert angle/position differences to error format
+            best_match_idx=comparison_results.get('best_match_idx', 0),
+            reference_timestamp=0.0,  # TODO: Get from comparison results
+            timing_offset=0.0  # TODO: Calculate timing offset
+        )
         
-        angle_feedback = []
-        for angle_name, user_angle in user_angles.items():
-            if angle_name in ref_angles:
-                ref_angle = ref_angles[angle_name]
-                difference = abs(user_angle - ref_angle)
+        # Generate feedback using LiveFeedbackService
+        feedback_result = live_feedback_service.process_snapshot(snapshot_data)
+        
+        if feedback_result:
+            return feedback_result.get('feedback_text', 'Keep practicing!')
+        else:
+            # Fallback to simple feedback if no LLM feedback generated
+            combined_score = comparison_results.get('combined_score', 0.0)
+            if combined_score >= 0.8:
+                return "Great pose! Keep it up!"
+            elif combined_score >= 0.6:
+                return "Good form! Try to match the reference more closely."
+            else:
+                return "Keep practicing to improve your pose!"
                 
-                if difference > current_config.angle_difference_threshold:
-                    if user_angle > ref_angle:
-                        angle_feedback.append(f"{angle_name.replace('_', ' ').title()}: bend less by {difference:.1f}°")
-                    else:
-                        angle_feedback.append(f"{angle_name.replace('_', ' ').title()}: bend more by {difference:.1f}°")
-        
-        if angle_feedback:
-            feedback_parts.append("Angle adjustments needed: " + ", ".join(angle_feedback))
-    
-    # Add position differences if reference data is available
-    if reference_pose_data and 'landmarks' in reference_pose_data:
-        user_landmarks = user_pose_data.get('landmarks', {})
-        ref_landmarks = reference_pose_data.get('landmarks', {})
-        
-        position_feedback = []
-        for category, landmarks in user_landmarks.items():
-            if category in ref_landmarks:
-                for landmark_name, user_pos in landmarks.items():
-                    if landmark_name in ref_landmarks[category]:
-                        ref_pos = ref_landmarks[category][landmark_name]
-                        if user_pos is not None and ref_pos is not None:
-                            # Calculate 3D distance
-                            distance = np.linalg.norm(np.array(user_pos) - np.array(ref_pos))
-                            
-                            if distance > current_config.position_difference_threshold:
-                                position_feedback.append(f"{landmark_name.replace('_', ' ').title()}: adjust position")
-        
-        if position_feedback:
-            feedback_parts.append("Position adjustments needed: " + ", ".join(position_feedback[:3]))  # Limit to 3 items
-    
-    # Combine feedback
-    if len(feedback_parts) > 1:
-        return " | ".join(feedback_parts)
-    else:
-        return feedback_parts[0] if feedback_parts else "Keep practicing to improve your pose!"
+    except Exception as e:
+        print(f"LLM feedback generation failed: {e}")
+        # Fallback to simple feedback
+        combined_score = comparison_results.get('combined_score', 0.0)
+        if combined_score >= 0.8:
+            return "Great pose! Keep it up!"
+        else:
+            return "Keep practicing to improve your pose!"
 
 def process_image_snapshot(image_data):
     """Process a single image snapshot and extract pose/hand landmarks"""
@@ -303,7 +286,7 @@ def process_image_snapshot(image_data):
                     'landmarks': angle_calculator.extract_key_landmarks(pose_flat) if pose_landmarks is not None else {}
                 }
                 
-                live_feedback = generate_llm_feedback(user_pose_data, comparison_result, reference_pose_data)
+                live_feedback = generate_llm_feedback(image_data, comparison_result, user_pose_data, reference_pose_data)
                 
                 # Store in session data
                 current_session['pose_data'].append({
