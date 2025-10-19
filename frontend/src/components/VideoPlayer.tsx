@@ -14,8 +14,8 @@ interface VideoPlayerProps {
   duration: number;
   onTimeUpdate: (time: number) => void;
   onLoadedMetadata: (duration: number) => void;
-  onPlayPause: () => void;
-  onRestart: () => void;
+  onPlayPause?: () => void;
+  onRestart?: () => void;
   onSeek?: (time: number) => void;
   playbackRate?: number;
   mirror?: boolean;
@@ -155,7 +155,8 @@ export function VideoPlayer({
           {/* Play/Pause Button */}
           <button
             onClick={onPlayPause}
-            className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all"
+            disabled={!onPlayPause}
+            className={`w-10 h-10 rounded-full bg-white/20 flex items-center justify-center transition-all ${onPlayPause ? 'hover:bg-white/30 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
           >
             {isPlaying ? (
               <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -170,8 +171,9 @@ export function VideoPlayer({
 
           {/* Restart Button */}
           <button
-            onClick={handleRestart}
-            className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all"
+            onClick={onRestart || handleRestart}
+            disabled={!onRestart}
+            className={`w-8 h-8 rounded-full bg-white/20 flex items-center justify-center transition-all ${onRestart ? 'hover:bg-white/30 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
           >
             <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -182,14 +184,14 @@ export function VideoPlayer({
         {/* Progress Bar */}
         <div className="mt-2">
           <div 
-            className="w-full bg-white/20 rounded-full h-1 cursor-pointer"
-            onClick={(e) => {
+            className={`w-full bg-white/20 rounded-full h-1 ${onSeek ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+            onClick={onSeek ? (e) => {
               const rect = e.currentTarget.getBoundingClientRect();
               const clickX = e.clientX - rect.left;
               const clickPercentage = clickX / rect.width;
               const newTime = clickPercentage * duration;
               handleSeek(newTime);
-            }}
+            } : undefined}
           >
             <div
               className="bg-white rounded-full h-1 transition-all duration-100"

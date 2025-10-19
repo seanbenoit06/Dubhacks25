@@ -39,6 +39,9 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   const [countdown, setCountdown] = useState<number | null>(null);
   const [currentFeedback, setCurrentFeedback] = useState<MockFeedbackResponse | null>(null);
   const [overallAccuracy, setOverallAccuracy] = useState(82);
+  const [showCongratulations, setShowCongratulations] = useState(false);
+  const [videoEnded, setVideoEnded] = useState(false);
+  const [autoNavigateCountdown, setAutoNavigateCountdown] = useState(5);
 
   // Video reference
   const videoSrc = `/src/data/${routine?.title.toLowerCase()}.mp4`; // Video files in frontend/src/data
@@ -74,11 +77,46 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   const handleVideoTimeUpdate = (time: number) => {
     if (!isSeeking) {
       setVideoCurrentTime(time);
+      
+      // Check if video has ended
+      if (videoDuration > 0 && time >= videoDuration - 0.1 && !videoEnded) {
+        handleVideoEnd();
+      }
     }
+  };
+
+  // Handle video end
+  const handleVideoEnd = () => {
+    console.log('Video ended - pausing feedback and showing congratulations');
+    setVideoEnded(true);
+    setIsPlaying(false);
+    
+    // Pause all feedback systems
+    pauseProcessing();
+    stopAutoCapture();
+    
+    // Show congratulations popup
+    setShowCongratulations(true);
+    setAutoNavigateCountdown(5);
+    
+    // Start countdown for auto-navigation
+    const countdownInterval = setInterval(() => {
+      setAutoNavigateCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          setShowCongratulations(false);
+          onReview();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   // Handle timeline click for seeking
   const handleTimelineClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (videoEnded) return; // Don't allow seeking after video ends
+    
     const timeline = event.currentTarget;
     const rect = timeline.getBoundingClientRect();
     const clickX = event.clientX - rect.left;
@@ -160,7 +198,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
 
   // Control capture based on play/pause state
   useEffect(() => {
-    if (hasStarted) {
+    if (hasStarted && !videoEnded) {
       if (isPlaying) {
         console.log('Video playing - resuming capture');
         resumeProcessing();
@@ -171,7 +209,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
         stopAutoCapture();
       }
     }
-  }, [isPlaying, hasStarted, resumeProcessing, pauseProcessing, startAutoCapture, stopAutoCapture]);
+  }, [isPlaying, hasStarted, videoEnded, resumeProcessing, pauseProcessing, startAutoCapture, stopAutoCapture]);
 
   const handleStart = () => {
     setCountdown(3);
@@ -281,12 +319,97 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
         )}
       </AnimatePresence>
 
+      {/* Congratulations Overlay */}
+      <AnimatePresence>
+        {showCongratulations && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0, y: 50 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0, y: -50 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+              className="relative text-center"
+            >
+              {/* Background glow effect */}
+              <div 
+                className="absolute inset-0 blur-3xl opacity-60"
+                style={{
+                  background: 'radial-gradient(circle, #22d3ee 0%, #a855f7 50%, #ec4899 100%, transparent 70%)'
+                }}
+              />
+              
+              {/* Main content */}
+              <div className="relative bg-gradient-to-br from-cyan-500/20 to-purple-500/20 backdrop-blur-sm border border-white/20 rounded-2xl p-12 max-w-lg mx-4">
+                {/* Celebration emoji */}
+                <motion.div
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ delay: 0.3, duration: 0.8, ease: "easeOut" }}
+                  className="text-8xl mb-6"
+                >
+                  🎉
+                </motion.div>
+                
+                {/* Congratulations text */}
+                <motion.h1
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5, duration: 0.6 }}
+                  className="text-4xl font-bold text-white mb-4"
+                >
+                  Congratulations!
+                </motion.h1>
+                
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7, duration: 0.6 }}
+                  className="text-lg text-white/80 mb-6"
+                >
+                  You've completed the routine! Your final accuracy was <span className="text-cyan-400 font-semibold">{overallAccuracy}%</span>
+                </motion.p>
+                
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8, duration: 0.6 }}
+                  className="text-sm text-white/60 mb-6"
+                >
+                  Auto-navigating to summary in {autoNavigateCountdown} seconds...
+                </motion.p>
+                
+                {/* View Summary button */}
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.9, duration: 0.4 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setShowCongratulations(false);
+                    onReview();
+                  }}
+                  className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400 text-white font-semibold rounded-full transition-all duration-300 shadow-lg hover:shadow-xl"
+                >
+                  View Performance Summary
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Main Content */}
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="relative w-full max-w-[1159.2px] h-full">
           {/* Time Progress Bar at Top */}
           <div 
-            className="absolute bg-gradient-to-b from-[#1a1d2e] h-[80px] left-0 to-[rgba(0,0,0,0)] top-0 w-full cursor-pointer"
+            className={`absolute bg-gradient-to-b from-[#1a1d2e] h-[80px] left-0 to-[rgba(0,0,0,0)] top-0 w-full ${videoEnded ? 'cursor-default opacity-50' : 'cursor-pointer'}`}
             onClick={handleTimelineClick}
             onMouseMove={handleTimelineHover}
           >
@@ -393,9 +516,9 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
                   duration={videoDuration}
                   onTimeUpdate={handleVideoTimeUpdate}
                   onLoadedMetadata={setVideoDuration}
-                  onPlayPause={() => setIsPlaying(!isPlaying)}
-                  onSeek={handleVideoSeek}
-                  onRestart={() => {
+                  onPlayPause={videoEnded ? undefined : () => setIsPlaying(!isPlaying)}
+                  onSeek={videoEnded ? undefined : handleVideoSeek}
+                  onRestart={videoEnded ? undefined : () => {
                     // Go back 10 seconds instead of to beginning
                     const newTime = Math.max(0, videoCurrentTime - 10);
                     handleVideoSeek(newTime);
@@ -430,8 +553,8 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
           <div className="absolute bg-gradient-to-b from-[#0f1219] h-[80.8px] left-0 to-[#0f1219] top-[674.4px] via-50% via-[#13161f] w-full">
             <PracticeControlBar
               isPlaying={isPlaying}
-              onPlayPause={() => setIsPlaying(!isPlaying)}
-              onRestart={() => {
+              onPlayPause={videoEnded ? undefined : () => setIsPlaying(!isPlaying)}
+              onRestart={videoEnded ? undefined : () => {
                 // Go back 10 seconds instead of to beginning
                 const newTime = Math.max(0, videoCurrentTime - 10);
                 handleVideoSeek(newTime);
