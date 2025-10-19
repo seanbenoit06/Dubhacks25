@@ -31,7 +31,6 @@ export function EnhancedPracticePage({ routineId, onReview, onSettings }: Enhanc
   const [isSeeking, setIsSeeking] = useState(false);
 
   // Camera and feedback state
-  const [ghostOpacity, setGhostOpacity] = useState(60);
   // const [mirrorCamera] = useState(true);
   const [mirrorVideo, setMirrorVideo] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
@@ -582,15 +581,9 @@ export function EnhancedPracticePage({ routineId, onReview, onSettings }: Enhanc
                   // Don't auto-resume, let user click play
                 }, 5000);
               }}
-              onRecalibrate={() => {
-                // Recalibrate camera
-                console.log('Recalibrating camera...');
-              }}
               onSettings={onSettings}
               fps={30}
               warnings={[]}
-              ghostOpacity={ghostOpacity}
-              onGhostOpacityChange={setGhostOpacity}
               playbackRate={playbackRate}
               onPlaybackRateChange={setPlaybackRate}
             />
