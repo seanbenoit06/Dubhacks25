@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { mockRoutines } from '../data/mockData';
 import { PracticeTip } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -50,6 +50,34 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   const progressPercentage = videoDuration > 0 ? (videoCurrentTime / videoDuration) * 100 : 0;
   const formattedCurrentTime = formatTime(videoCurrentTime);
   const formattedDuration = formatTime(videoDuration);
+
+  // Handle timeline click for seeking
+  const handleTimelineClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const timeline = event.currentTarget;
+    const rect = timeline.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const clickPercentage = clickX / rect.width;
+    const newTime = clickPercentage * videoDuration;
+    
+    setVideoCurrentTime(newTime);
+    // Update the video element directly
+    const videoElement = document.querySelector('video') as HTMLVideoElement;
+    if (videoElement) {
+      videoElement.currentTime = newTime;
+    }
+  };
+
+  // Handle timeline hover for preview
+  const handleTimelineHover = (event: React.MouseEvent<HTMLDivElement>) => {
+    const timeline = event.currentTarget;
+    const rect = timeline.getBoundingClientRect();
+    const hoverX = event.clientX - rect.left;
+    const hoverPercentage = hoverX / rect.width;
+    const hoverTime = hoverPercentage * videoDuration;
+    
+    // You could add a tooltip here showing the hover time
+    // For now, we'll just update the cursor
+  };
 
   // Use snapshot capture hook
   const {
@@ -135,6 +163,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   const currentTip: PracticeTip | undefined = currentFeedback?.live_feedback ? {
     joint: 'General',
     message: currentFeedback.live_feedback,
+    beatIndex: Math.floor(videoCurrentTime * 2), // Convert time to approximate beat index
   } : undefined;
 
   return (
@@ -218,12 +247,16 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="relative w-full max-w-[1159.2px] h-full">
           {/* Time Progress Bar at Top */}
-          <div className="absolute bg-gradient-to-b from-[#1a1d2e] h-[80px] left-0 to-[rgba(0,0,0,0)] top-0 w-full">
+          <div 
+            className="absolute bg-gradient-to-b from-[#1a1d2e] h-[80px] left-0 to-[rgba(0,0,0,0)] top-0 w-full cursor-pointer"
+            onClick={handleTimelineClick}
+            onMouseMove={handleTimelineHover}
+          >
             <div aria-hidden="true" className="absolute border-[0px_0px_0.8px] border-[rgba(255,255,255,0.05)] border-solid inset-0 pointer-events-none" />
           
             {/* Progress Bar Background */}
             <div className="absolute h-[79.2px] left-0 top-0 w-full">
-              <div className="absolute inset-0 bg-black/20 rounded-sm" />
+              <div className="absolute inset-0 bg-black/20 rounded-sm hover:bg-black/30 transition-colors" />
             </div>
 
             {/* Progress Bar Fill */}
@@ -324,7 +357,9 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
                   onLoadedMetadata={setVideoDuration}
                   onPlayPause={() => setIsPlaying(!isPlaying)}
                   onRestart={() => {
-                    setVideoCurrentTime(0);
+                    // Go back 10 seconds instead of to beginning
+                    const newTime = Math.max(0, videoCurrentTime - 10);
+                    setVideoCurrentTime(newTime);
                     setIsPlaying(false);
                     setCurrentFeedback(null);
                     setOverallAccuracy(82);
@@ -358,16 +393,31 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
               isPlaying={isPlaying}
               onPlayPause={() => setIsPlaying(!isPlaying)}
               onRestart={() => {
-                setVideoCurrentTime(0);
+                // Go back 10 seconds instead of to beginning
+                const newTime = Math.max(0, videoCurrentTime - 10);
+                setVideoCurrentTime(newTime);
+                
+                // Update the video element directly
+                const videoElement = document.querySelector('video') as HTMLVideoElement;
+                if (videoElement) {
+                  videoElement.currentTime = newTime;
+                }
+                
+                // Pause the video
                 setIsPlaying(false);
-                // Reset feedback and accuracy
+                
+                // Reset feedback
                 setCurrentFeedback(null);
                 setOverallAccuracy(82);
-                // Stop and restart capture
+                
+                // Stop capture temporarily
                 stopAutoCapture();
+                
+                // Start 5-second countdown before resuming
                 setTimeout(() => {
-                  startAutoCapture();
-                }, 100);
+                  console.log('5-second countdown finished, ready to resume');
+                  // Don't auto-resume, let user click play
+                }, 5000);
               }}
               onRecalibrate={() => {
                 // Recalibrate camera
@@ -378,10 +428,8 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
               warnings={[]}
               ghostOpacity={ghostOpacity}
               onGhostOpacityChange={setGhostOpacity}
-              mirrorCamera={mirrorCamera}
-              onMirrorToggle={() => setMirrorCamera(!mirrorCamera)}
-              mirrorVideo={mirrorVideo}
-              onMirrorVideoToggle={() => setMirrorVideo(!mirrorVideo)}
+              playbackRate={playbackRate}
+              onPlaybackRateChange={setPlaybackRate}
             />
           </div>
         </div>

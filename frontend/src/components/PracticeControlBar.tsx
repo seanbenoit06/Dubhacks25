@@ -14,10 +14,8 @@ interface PracticeControlBarProps {
   warnings?: string[];
   ghostOpacity: number;
   onGhostOpacityChange: (value: number) => void;
-  mirrorCamera: boolean;
-  onMirrorToggle: () => void;
-  mirrorVideo?: boolean;
-  onMirrorVideoToggle?: () => void;
+  playbackRate?: number;
+  onPlaybackRateChange?: (rate: number) => void;
 }
 
 export function PracticeControlBar({
@@ -30,13 +28,10 @@ export function PracticeControlBar({
   warnings = [],
   ghostOpacity,
   onGhostOpacityChange,
-  mirrorCamera,
-  onMirrorToggle,
-  mirrorVideo = false,
-  onMirrorVideoToggle,
+  playbackRate = 1,
+  onPlaybackRateChange,
 }: PracticeControlBarProps) {
   const [loopCount, setLoopCount] = useState<8 | 16>(8);
-  const [speed, setSpeed] = useState<number>(1);
   const [showGhostSlider, setShowGhostSlider] = useState(false);
 
   return (
@@ -90,11 +85,11 @@ export function PracticeControlBar({
 
           {/* Speed */}
           <button
-            onClick={() => setSpeed(speed === 1 ? 0.75 : 1)}
+            onClick={() => onPlaybackRateChange?.(playbackRate === 1 ? 0.75 : 1)}
             className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-gray-400 hover:text-white transition-all flex items-center gap-1"
           >
             <Gauge className="w-3 h-3" />
-            {speed}×
+            {playbackRate}×
           </button>
         </div>
 
@@ -123,33 +118,6 @@ export function PracticeControlBar({
             )}
           </div>
 
-          {/* Mirror Camera */}
-          <button
-            onClick={onMirrorToggle}
-            className={`px-3 py-1.5 rounded-lg border transition-all text-xs flex items-center gap-1 ${
-              mirrorCamera
-                ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
-                : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <FlipHorizontal2 className="w-3 h-3" />
-            Mirror Cam
-          </button>
-
-          {/* Mirror Video */}
-          {onMirrorVideoToggle && (
-            <button
-              onClick={onMirrorVideoToggle}
-              className={`px-3 py-1.5 rounded-lg border transition-all text-xs flex items-center gap-1 ${
-                mirrorVideo
-                  ? 'bg-purple-500/20 border-purple-500/50 text-purple-400'
-                  : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              <FlipHorizontal2 className="w-3 h-3" />
-              Mirror Video
-            </button>
-          )}
 
           {/* Recalibrate */}
           <button
