@@ -81,8 +81,8 @@ export function ReviewPage({ routineId, segmentId, onPracticeAgain, onBack, onLe
   ];
 
   return (
-    <div className="bg-gradient-to-b from-[#0b0e16] via-50% via-[#0f1219] to-[#121626] min-h-screen overflow-auto">
-      <div className="relative w-full">
+    <div className="bg-gradient-to-b from-[#0b0e16] via-50% via-[#0f1219] to-[#121626] min-h-screen">
+      <div className="relative w-full pb-24">
         {/* Header */}
         <div className="absolute left-[24px] top-[24px] flex gap-[16px] items-center h-[40px] w-[1096px]">
           <button

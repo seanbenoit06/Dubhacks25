@@ -100,5 +100,5 @@ export default function App() {
     }
   };
 
-  return <div className="dark">{renderPage()}</div>;
+  return <div className="dark min-h-screen bg-background">{renderPage()}</div>;
 }

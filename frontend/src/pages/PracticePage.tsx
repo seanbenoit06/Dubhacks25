@@ -4,6 +4,8 @@ import { PracticeTip } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { Play, SkipForward } from 'lucide-react';
 import svgPaths from '../imports/svg-x25jpvg6ij';
+import { LiveCameraView } from '../components/LiveCameraView';
+import { useSnapshotCapture } from '../hooks/useSnapshotCapture';
 
 interface PracticePageProps {
   routineId: string;
@@ -20,6 +22,29 @@ export function PracticePage({ routineId, onBack, onReview, onSettings }: Practi
   const [mirrorCamera, setMirrorCamera] = useState(true);
   const [hasStarted, setHasStarted] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+
+  // Snapshot capture functionality
+  const {
+    captureSnapshot,
+    processQueue,
+    queueStatus,
+    clearQueue,
+    isCapturing,
+    startAutoCapture,
+    stopAutoCapture
+  } = useSnapshotCapture({
+    autoCapture: true,
+    captureInterval: 500, // Capture every 500ms during practice
+    maxQueueSize: 50,
+    apiEndpoint: 'http://localhost:8000/api/analyze-pose',
+    onSnapshotProcessed: (result) => {
+      console.log('Snapshot processed:', result);
+      // Handle the analysis result here
+    },
+    onError: (error) => {
+      console.error('Snapshot error:', error);
+    }
+  });
 
   if (!routine) {
     return <div>Routine not found</div>;
@@ -38,6 +63,7 @@ export function PracticePage({ routineId, onBack, onReview, onSettings }: Practi
 
   const handleStart = () => {
     setCountdown(3);
+    startAutoCapture(); // Start capturing snapshots when practice begins
   };
 
   useEffect(() => {
@@ -60,7 +86,7 @@ export function PracticePage({ routineId, onBack, onReview, onSettings }: Practi
   }, [countdown]);
 
   return (
-    <div className="relative h-screen w-full overflow-hidden" style={{ backgroundImage: "linear-gradient(rgb(11, 14, 22) 0%, rgb(15, 18, 25) 50%, rgb(18, 22, 38) 100%), linear-gradient(90deg, rgb(255, 255, 255) 0%, rgb(255, 255, 255) 100%)" }}>
+    <div className="relative h-screen w-full overflow-hidden bg-[#0f1219]" style={{ backgroundImage: "linear-gradient(rgb(11, 14, 22) 0%, rgb(15, 18, 25) 50%, rgb(18, 22, 38) 100%)" }}>
       {/* Skip to Summary Button */}
       {hasStarted && (
         <button
@@ -143,85 +169,90 @@ export function PracticePage({ routineId, onBack, onReview, onSettings }: Practi
           <div className="absolute bg-gradient-to-b from-[#1a1d2e] h-[80px] left-0 to-[rgba(0,0,0,0)] top-0 w-full">
             <div aria-hidden="true" className="absolute border-[0px_0px_0.8px] border-[rgba(255,255,255,0.05)] border-solid inset-0 pointer-events-none" />
           
-          {/* Segments */}
-          <div className="absolute h-[79.2px] left-0 top-0 w-full flex">
-            {routine.segments.map((segment, idx) => {
-              const width = (segment.beats / totalBeats) * 100;
-              return (
-                <div
-                  key={segment.id}
-                  className="box-border h-[79.2px] relative"
-                  style={{ width: `${width}%` }}
-                >
-                  <div aria-hidden="true" className="absolute border-[0px_0.8px_0px_0px] border-[rgba(255,255,255,0.05)] border-solid inset-0 pointer-events-none" />
-                  <div className="absolute left-[12px] top-[12px]">
-                    <p className="font-['Arimo',_sans-serif] font-normal leading-[16px] text-[#99a1af] text-[12px] tracking-[0.3px] uppercase">
-                      {segment.name}
-                    </p>
+            {/* Segments */}
+            <div className="absolute h-[79.2px] left-0 top-0 w-full flex">
+              {routine.segments.map((segment, idx) => {
+                const width = (segment.beats / totalBeats) * 100;
+                return (
+                  <div
+                    key={segment.id}
+                    className="box-border h-[79.2px] relative"
+                    style={{ width: `${width}%` }}
+                  >
+                    <div aria-hidden="true" className="absolute border-[0px_0.8px_0px_0px] border-[rgba(255,255,255,0.05)] border-solid inset-0 pointer-events-none" />
+                    <div className="absolute left-[12px] top-[12px]">
+                      <p className="font-['Arimo',_sans-serif] font-normal leading-[16px] text-[#99a1af] text-[12px] tracking-[0.3px] uppercase">
+                        {segment.name}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
 
-          {/* Beat Ticks */}
-          <div className="absolute h-[79.2px] left-0 top-0 w-full flex">
-            {Array.from({ length: totalBeats }).map((_, beatIdx) => {
-              const isStrongBeat = beatIdx % 4 === 0;
-              const isErrorBeat = errorRegions.includes(beatIdx);
-              const position = (beatIdx / totalBeats) * 100;
-              
-              return (
-                <div
-                  key={beatIdx}
-                  className={`absolute ${
-                    isErrorBeat
-                      ? 'bg-[#fb2c36] h-[32px] shadow-[0px_0px_8px_0px_rgba(239,68,68,0.6)] top-[35.2px]'
-                      : isStrongBeat
-                      ? 'bg-[rgba(255,255,255,0.4)] h-[24px] top-[43.2px]'
-                      : 'bg-[rgba(255,255,255,0.15)] h-[12px] top-[55.2px]'
-                  } w-px`}
-                  style={{ left: `${position}%` }}
-                />
-              );
-            })}
-          </div>
+            {/* Beat Ticks */}
+            <div className="absolute h-[79.2px] left-0 top-0 w-full flex">
+              {Array.from({ length: totalBeats }).map((_, beatIdx) => {
+                const isStrongBeat = beatIdx % 4 === 0;
+                const isErrorBeat = errorRegions.includes(beatIdx);
+                const position = (beatIdx / totalBeats) * 100;
+                
+                return (
+                  <div
+                    key={beatIdx}
+                    className={`absolute ${
+                      isErrorBeat
+                        ? 'bg-[#fb2c36] h-[32px] shadow-[0px_0px_8px_0px_rgba(239,68,68,0.6)] top-[35.2px]'
+                        : isStrongBeat
+                        ? 'bg-[rgba(255,255,255,0.4)] h-[24px] top-[43.2px]'
+                        : 'bg-[rgba(255,255,255,0.15)] h-[12px] top-[55.2px]'
+                    } w-px`}
+                    style={{ left: `${position}%` }}
+                  />
+                );
+              })}
+            </div>
 
-          {/* Playhead */}
-          <div
-            className="absolute bg-[#00d3f3] h-[79.2px] shadow-[0px_0px_20px_0px_rgba(34,211,238,0.8),0px_0px_40px_0px_rgba(34,211,238,0.4)] top-0 w-[3px] transition-all duration-100"
-            style={{ left: `${(currentBeat / totalBeats) * 100}%` }}
-          >
-            <div className="bg-[#00d3f3] h-[12px] rounded-[2.68435e+07px] shadow-[0px_0px_12px_0px_#22d3ee,0px_0px_24px_0px_rgba(34,211,238,0.6)] w-full" />
-          </div>
+            {/* Playhead */}
+            <div
+              className="absolute bg-[#00d3f3] h-[79.2px] shadow-[0px_0px_20px_0px_rgba(34,211,238,0.8),0px_0px_40px_0px_rgba(34,211,238,0.4)] top-0 w-[3px] transition-all duration-100"
+              style={{ left: `${(currentBeat / totalBeats) * 100}%` }}
+            >
+              <div className="bg-[#00d3f3] h-[12px] rounded-[2.68435e+07px] shadow-[0px_0px_12px_0px_#22d3ee,0px_0px_24px_0px_rgba(34,211,238,0.6)] w-full" />
+            </div>
 
-          {/* Beat Counter */}
-          <div className="absolute h-[15.988px] left-[16px] top-[51.2px]">
-            <p className="font-['Arimo',_sans-serif] font-normal leading-[16px] text-[#6a7282] text-[12px]">
-              Beat {currentBeat}
-            </p>
+            {/* Beat Counter */}
+            <div className="absolute h-[15.988px] left-[16px] top-[51.2px]">
+              <p className="font-['Arimo',_sans-serif] font-normal leading-[16px] text-[#6a7282] text-[12px]">
+                Beat {currentBeat}
+              </p>
+            </div>
+            <div className="absolute h-[15.988px] right-[16px] top-[51.2px]">
+              <p className="font-['Arimo',_sans-serif] font-normal leading-[16px] text-[#6a7282] text-[12px]">
+                {totalBeats} beats total
+              </p>
+            </div>
           </div>
-          <div className="absolute h-[15.988px] right-[16px] top-[51.2px]">
-            <p className="font-['Arimo',_sans-serif] font-normal leading-[16px] text-[#6a7282] text-[12px]">
-              {totalBeats} beats total
-            </p>
-          </div>
-        </div>
 
         {/* Three Column Layout - User, Live Feedback, Performer */}
         <div className="absolute h-[594.4px] left-[24px] top-[80px] w-[1111.2px]">
           {/* Left: User View */}
           <div className="absolute bg-gradient-to-b from-[#0b0e16] h-[537px] left-[24px] rounded-[10px] to-[#121626] top-[21px] w-[400.025px]">
             <div className="h-[537px] overflow-clip relative rounded-[inherit] w-full">
-              <div className="absolute left-[16.8px] top-[16.8px]">
+              <div className="absolute left-[16.8px] top-[16.8px] z-10">
                 <p className="font-['Arimo',_sans-serif] font-normal leading-[16px] text-[#6a7282] text-[12px] tracking-[0.6px] uppercase">
                   User
                 </p>
               </div>
-              {/* Canvas placeholder */}
-              <div className="absolute h-full w-full flex items-center justify-center text-gray-600 text-4xl">
-                📹
-              </div>
+              {/* Live Camera Feed */}
+              <LiveCameraView 
+                className="absolute inset-0 rounded-[inherit] w-full h-full"
+                showMirrorButton={true}
+                mirrorButtonPosition="top-right"
+                onSnapshot={captureSnapshot}
+                autoSnapshot={isCapturing}
+                snapshotInterval={500}
+              />
             </div>
             <div aria-hidden="true" className="absolute border-[0.8px] border-[rgba(255,255,255,0.05)] border-solid inset-0 pointer-events-none rounded-[10px]" />
           </div>
@@ -313,24 +344,24 @@ export function PracticePage({ routineId, onBack, onReview, onSettings }: Practi
           <div className="absolute left-[24px] top-0 w-[1111.2px] h-[80.8px] flex items-center justify-between">
             {/* Left Controls */}
             <div className="h-[48px] flex items-center gap-0">
-              {/* Play/Pause Button */}
-              <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
-                style={{ background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)' }}
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 20 20">
-                  <path d={svgPaths.p2af6372} stroke="white" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.66667" />
-                </svg>
-              </button>
+                {/* Play/Pause Button */}
+                <button
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
+                  style={{ background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)' }}
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 20 20">
+                    <path d={svgPaths.p2af6372} stroke="white" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.66667" />
+                  </svg>
+                </button>
 
               {/* Restart Button */}
               <button className="w-10 h-10 ml-[8px] rounded-full bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] flex items-center justify-center border-[0.8px] border-[rgba(255,255,255,0.1)]">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 16 16">
-                  <path d={svgPaths.p12949080} stroke="#99A1AF" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.33333" />
-                  <path d="M2 2V5.33333H5.33333" stroke="#99A1AF" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.33333" />
-                </svg>
-              </button>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 16 16">
+                    <path d={svgPaths.p12949080} stroke="#99A1AF" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.33333" />
+                    <path d="M2 2V5.33333H5.33333" stroke="#99A1AF" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.33333" />
+                  </svg>
+                </button>
 
               <div className="h-8 w-px bg-[rgba(255,255,255,0.1)] ml-[8px]" />
 
@@ -423,11 +454,25 @@ export function PracticePage({ routineId, onBack, onReview, onSettings }: Practi
               <div className="bg-[rgba(0,201,80,0.1)] h-[21.587px] rounded-[8px] px-[8.8px] py-[2.8px] border-[0.8px] border-[rgba(0,201,80,0.3)]">
                 <p className="font-['Arimo',_sans-serif] font-normal leading-[16px] text-[#05df72] text-[12px]">Connection OK</p>
               </div>
+              {/* Snapshot Queue Status */}
+              {isCapturing && (
+                <div className={`h-[21.587px] rounded-[8px] px-[8.8px] py-[2.8px] border-[0.8px] ${
+                  queueStatus.isProcessing 
+                    ? 'bg-[rgba(255,193,7,0.1)] border-[rgba(255,193,7,0.3)]' 
+                    : 'bg-[rgba(0,201,80,0.1)] border-[rgba(0,201,80,0.3)]'
+                }`}>
+                  <p className={`font-['Arimo',_sans-serif] font-normal leading-[16px] text-[12px] ${
+                    queueStatus.isProcessing ? 'text-[#ffc107]' : 'text-[#05df72]'
+                  }`}>
+                    {queueStatus.isProcessing ? 'Processing' : `${queueStatus.size} Queued`}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
-        </div>
       </div>
+    </div>
     </div>
   );
 }

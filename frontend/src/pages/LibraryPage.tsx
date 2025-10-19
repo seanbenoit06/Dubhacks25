@@ -40,8 +40,8 @@ export function LibraryPage({ onSelectRoutine, onContinue }: LibraryPageProps) {
   });
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-background p-4 md:p-8 overflow-auto">
+      <div className="max-w-7xl mx-auto space-y-8 pb-8">
         {/* Header */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500/20 via-pink-500/20 to-cyan-500/20 p-8 md:p-12 border border-purple-500/30 shadow-2xl">
           <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-pink-500/10 blur-3xl" />

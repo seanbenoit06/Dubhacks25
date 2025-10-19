@@ -29,8 +29,8 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
   ];
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-8">
+    <div className="min-h-screen bg-background p-4 md:p-8 overflow-auto">
+      <div className="max-w-4xl mx-auto space-y-8 pb-8">
         {/* Header */}
         <div className="flex items-center gap-4">
           <Button variant="ghost" onClick={onBack}>

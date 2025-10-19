@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { mockRoutines } from '../data/mockData';
 import { PracticeTip } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { Play, Pause, BookOpen, X } from 'lucide-react';
 import svgPaths from '../imports/svg-x25jpvg6ij';
+import { LiveCameraView } from '../components/LiveCameraView';
 
 interface LearningModePageProps {
   routineId: string;
@@ -78,9 +79,9 @@ export function LearningModePage({ routineId, onBack, onReview }: LearningModePa
     { joint: 'Both Knees', message: 'Bend knees to 90° and engage leg muscles', beatIndex: 23 },
   ];
 
-  const currentTip = practiceTips.find(tip => 
-    Math.abs(tip.beatIndex - currentBeat) <= 2
-  ) || practiceTips[0];
+  const currentTip =
+    practiceTips.find((tip) => Math.abs((tip.beatIndex ?? 0) - currentBeat) <= 2) ||
+    practiceTips[0];
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -118,7 +119,7 @@ export function LearningModePage({ routineId, onBack, onReview }: LearningModePa
   };
 
   return (
-    <div className="relative h-screen w-full overflow-hidden" style={{ backgroundImage: "linear-gradient(rgb(11, 14, 22) 0%, rgb(15, 18, 25) 50%, rgb(18, 22, 38) 100%), linear-gradient(90deg, rgb(255, 255, 255) 0%, rgb(255, 255, 255) 100%)" }}>
+    <div className="relative h-screen w-full overflow-hidden bg-[#0f1219]" style={{ backgroundImage: "linear-gradient(rgb(11, 14, 22) 0%, rgb(15, 18, 25) 50%, rgb(18, 22, 38) 100%)" }}>
       {/* Learning Mode Badge */}
       <div className="absolute top-6 right-6 z-40 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg text-white text-sm flex items-center gap-2 shadow-lg">
         <BookOpen className="w-4 h-4" />
@@ -303,9 +304,12 @@ export function LearningModePage({ routineId, onBack, onReview }: LearningModePa
                     User
                   </p>
                 </div>
-                <div className="absolute h-full w-full flex items-center justify-center text-gray-600 text-4xl">
-                  📹
-                </div>
+                {/* Live Camera Feed */}
+                <LiveCameraView
+                  className="absolute inset-0 rounded-[inherit] w-full h-full"
+                  showMirrorButton={true}
+                  mirrorButtonPosition="top-right"
+                />
               </div>
               <div aria-hidden="true" className="absolute border-[0.8px] border-[rgba(255,255,255,0.05)] border-solid inset-0 pointer-events-none rounded-[10px]" />
             </div>
@@ -462,7 +466,7 @@ export function LearningModePage({ routineId, onBack, onReview }: LearningModePa
 
                 <button className="bg-[rgba(255,255,255,0.05)] h-[29.587px] rounded-[10px] px-3 border-[0.8px] border-[rgba(255,255,255,0.1)] flex items-center gap-2">
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 12 12">
-                    <path d={svgPaths.p13a8f400} stroke="#99A1AF" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d={svgPaths.p2af6372} stroke="#99A1AF" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   <span className="text-xs text-[#99a1af]">Mirror</span>
                 </button>
