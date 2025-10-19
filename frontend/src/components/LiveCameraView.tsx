@@ -189,6 +189,12 @@ export function LiveCameraView({
       ended: video.ended
     });
     
+    // Check if video has valid dimensions
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.warn('❌ Video has no dimensions, skipping snapshot');
+      return null;
+    }
+    
     if (!ctx) {
       console.warn('❌ Canvas context not available');
       return null;
@@ -217,6 +223,22 @@ export function LiveCameraView({
     try {
       const dataURL = canvas.toDataURL('image/jpeg', 0.8); // 0.8 quality for smaller file size
       console.log('✅ Canvas converted to data URL, length:', dataURL.length);
+      console.log('🔍 Data URL starts with:', dataURL.substring(0, 50));
+      
+      // Check if the canvas has any content
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = imageData.data;
+      let hasContent = false;
+      for (let i = 0; i < pixels.length; i += 4) {
+        if (pixels[i] > 0 || pixels[i + 1] > 0 || pixels[i + 2] > 0) {
+          hasContent = true;
+          break;
+        }
+      }
+      console.log('🔍 Canvas has content:', hasContent);
+      console.log('🔍 DEBUG: Canvas dimensions:', canvas.width, 'x', canvas.height);
+      console.log('🔍 DEBUG: Video dimensions:', video.videoWidth, 'x', video.videoHeight);
+      
       return dataURL;
     } catch (error) {
       console.error('❌ Error converting canvas to data URL:', error);
@@ -239,6 +261,7 @@ export function LiveCameraView({
       // Start auto-snapshot interval
       snapshotIntervalRef.current = setInterval(() => {
         console.log('🔄 Interval callback executing...');
+        console.log('🔄 DEBUG: Current state - autoSnapshot:', autoSnapshot, 'cameraReady:', cameraReady, 'onSnapshot:', !!onSnapshot);
         const snapshot = captureSnapshot();
         console.log('📸 Snapshot result:', snapshot ? `Length: ${snapshot.length}` : 'null');
         if (snapshot) {

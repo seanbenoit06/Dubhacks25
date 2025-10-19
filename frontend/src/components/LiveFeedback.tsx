@@ -30,7 +30,7 @@ export function LiveFeedback({ overallAccuracy, currentTip, isPlaying }: LiveFee
         setFeedbackMessages((prev) => prev.filter((msg) => msg.id !== newId));
       }, 3000);
     }
-  }, [currentTip, messageId]);
+  }, [currentTip]); // Removed messageId from dependencies to fix infinite loop
 
   const getAccuracyColor = () => {
     if (overallAccuracy >= 80) return 'text-green-400';

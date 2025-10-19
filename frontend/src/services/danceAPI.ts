@@ -17,8 +17,9 @@ export interface ProcessSnapshotResponse {
     pose_score: number;
     motion_score: number;
     combined_score: number;
-    best_match_idx: number;
-    timing_offset: number;
+    dtw_score: number;
+    best_match_index: number;
+    timestamp: number;
   } | null;
   live_feedback: string | null;
   success: boolean;
@@ -76,10 +77,13 @@ class DanceAPI {
     return response.json();
   }
 
-  async processSnapshot(imageData: string): Promise<ProcessSnapshotResponse> {
+  async processSnapshot(imageData: string, videoTimestamp?: number): Promise<ProcessSnapshotResponse> {
     return this.request<ProcessSnapshotResponse>('/api/sessions/snapshot', {
       method: 'POST',
-      body: JSON.stringify({ image: imageData }),
+      body: JSON.stringify({ 
+        image: imageData,
+        video_timestamp: videoTimestamp 
+      }),
     });
   }
 

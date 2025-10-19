@@ -52,6 +52,7 @@ app.add_middleware(
 class ImageSnapshotRequest(BaseModel):
     """Request model for processing image snapshots."""
     image: str  # base64 encoded image
+    video_timestamp: Optional[float] = None
 
 
 class ProcessSnapshotResponse(BaseModel):
@@ -213,10 +214,20 @@ def load_reference_video(video_name: str) -> bool:
             print(f"ERROR: Failed to initialize PoseComparisonService: {e}")
             import traceback
             traceback.print_exc()
-            # Return True anyway to allow the session to continue
-            current_session['reference_video'] = video_name
-            print(f"✅ Loaded {len(reference_poses_list)} reference poses from {video_name} (without comparison service)")
-            return True
+            # Try with minimal config
+            try:
+                print(f"DEBUG: Trying with minimal config...")
+                minimal_config = PoseComparisonConfig()
+                comparison_service = PoseComparisonService(reference_poses_list, minimal_config)
+                current_session['reference_video'] = video_name
+                print(f"✅ Comparison service initialized with minimal config")
+                return True
+            except Exception as e2:
+                print(f"ERROR: Failed with minimal config too: {e2}")
+                # Return True anyway to allow the session to continue
+                current_session['reference_video'] = video_name
+                print(f"✅ Loaded {len(reference_poses_list)} reference poses from {video_name} (without comparison service)")
+                return True
 
     except Exception as e:
         print(f"❌ Error loading reference video: {e}")
@@ -289,7 +300,7 @@ def generate_llm_feedback(image_data: str, comparison_result: Dict[str, Any]) ->
         }
 
 
-def process_image_snapshot(image_data: str) -> Dict[str, Any]:
+def process_image_snapshot(image_data: str, video_timestamp: float = None) -> Dict[str, Any]:
     """
     Process a single image snapshot for pose detection and comparison.
 
@@ -300,13 +311,57 @@ def process_image_snapshot(image_data: str) -> Dict[str, Any]:
         dict: Processing results including landmarks, comparison, and feedback
     """
     try:
+        print(f"🔍 DEBUG: Processing image data, length: {len(image_data)}")
+        print(f"🔍 DEBUG: Image data starts with: {image_data[:50]}...")
+        
         # Strip data URL prefix if present (e.g., "data:image/jpeg;base64,")
         if ',' in image_data:
             image_data = image_data.split(',', 1)[1]
+            print(f"🔍 DEBUG: Stripped prefix, new length: {len(image_data)}")
         
         # Convert base64 to image
-        image_bytes = base64.b64decode(image_data)
-        image = Image.open(BytesIO(image_bytes))
+        try:
+            image_bytes = base64.b64decode(image_data)
+            print(f"🔍 DEBUG: Decoded image bytes, length: {len(image_bytes)}")
+            
+            image = Image.open(BytesIO(image_bytes))
+            print(f"🔍 DEBUG: Image opened successfully, size: {image.size}")
+        except Exception as decode_error:
+            print(f"❌ ERROR: Failed to decode/decode image: {decode_error}")
+            return {
+                'timestamp': time.time(),
+                'pose_landmarks': None,
+                'hand_landmarks': [],
+                'hand_classifications': [],
+                'preprocessed_angles': {},
+                'comparison_result': None,
+                'live_feedback': None,
+                'success': False,
+                'error': f'Image processing failed: {str(decode_error)}'
+            }
+        
+        # Check if image is too small (likely corrupted)
+        if image.size[0] < 10 or image.size[1] < 10:
+            print(f"❌ ERROR: Image too small: {image.size}, likely corrupted")
+            # Return a minimal result with 0 scores but still valid structure
+            return {
+                'timestamp': time.time(),
+                'pose_landmarks': None,
+                'hand_landmarks': [],
+                'hand_classifications': [],
+                'preprocessed_angles': {},
+                'comparison_result': {
+                    'combined_score': 0.0,
+                    'pose_score': 0.0,
+                    'motion_score': 0.0,
+                    'dtw_score': 0.0,
+                    'best_match_index': 0,
+                    'timestamp': video_timestamp if video_timestamp is not None else time.time()
+                },
+                'live_feedback': "Camera image too small - please check your camera positioning",
+                'success': True,
+                'error': None
+            }
         frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
         # Convert BGR to RGB for MediaPipe
@@ -324,26 +379,39 @@ def process_image_snapshot(image_data: str) -> Dict[str, Any]:
         hand_classifications = []
         preprocessed_angles = {}
 
+        # Process pose landmarks with robust handling
         if pose_results.pose_landmarks:
-            # Convert pose landmarks to numpy array
-            pose_landmarks = np.array([
-                [lm.x, lm.y, lm.z, lm.visibility]
-                for lm in pose_results.pose_landmarks.landmark
-            ])
+            try:
+                # Convert pose landmarks to numpy array
+                pose_landmarks = np.array([
+                    [lm.x, lm.y, lm.z, lm.visibility]
+                    for lm in pose_results.pose_landmarks.landmark
+                ])
+                print(f"🔍 DEBUG: Pose landmarks extracted, shape: {pose_landmarks.shape}")
+            except Exception as e:
+                print(f"❌ Error extracting pose landmarks: {e}")
+                pose_landmarks = None
 
+        # Process hand landmarks with robust handling
         if hand_results.multi_hand_landmarks:
-            for idx, hand_landmark in enumerate(hand_results.multi_hand_landmarks):
-                # Convert hand landmarks to numpy array
-                hand_array = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmark.landmark])
-                hand_landmarks.append(hand_array)
+            try:
+                for idx, hand_landmark in enumerate(hand_results.multi_hand_landmarks):
+                    # Convert hand landmarks to numpy array
+                    hand_array = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmark.landmark])
+                    hand_landmarks.append(hand_array)
 
-                # Get hand classification
-                if hand_results.multi_handedness and idx < len(hand_results.multi_handedness):
-                    handedness = hand_results.multi_handedness[idx]
-                    hand_classifications.append({
-                        'label': handedness.classification[0].label,
-                        'confidence': handedness.classification[0].score
-                    })
+                    # Get hand classification
+                    if hand_results.multi_handedness and idx < len(hand_results.multi_handedness):
+                        handedness = hand_results.multi_handedness[idx]
+                        hand_classifications.append({
+                            'label': handedness.classification[0].label,
+                            'confidence': handedness.classification[0].score
+                        })
+                print(f"🔍 DEBUG: Hand landmarks extracted, count: {len(hand_landmarks)}")
+            except Exception as e:
+                print(f"❌ Error extracting hand landmarks: {e}")
+                hand_landmarks = []
+                hand_classifications = []
 
         # Calculate preprocessed angles if we have pose landmarks
         if pose_landmarks is not None:
@@ -357,9 +425,9 @@ def process_image_snapshot(image_data: str) -> Dict[str, Any]:
                     preprocessed_angles = angle_calculator.calculate_all_angles(pose_flat, hand_flat)
                 else:
                     preprocessed_angles = angle_calculator.calculate_all_angles(pose_flat)
-
+                print(f"🔍 DEBUG: Angles calculated, count: {len(preprocessed_angles)}")
             except Exception as e:
-                print(f"Error calculating angles: {e}")
+                print(f"❌ Error calculating angles: {e}")
                 preprocessed_angles = {}
 
         # Perform real-time comparison if service is available
@@ -369,68 +437,118 @@ def process_image_snapshot(image_data: str) -> Dict[str, Any]:
         print(f"DEBUG: Comparison check - pose_landmarks: {pose_landmarks is not None}, comparison_service: {comparison_service is not None}")
         print(f"DEBUG: Current session reference_video: {current_session.get('reference_video', 'None')}")
         
-        if pose_landmarks is not None and comparison_service is not None:
+        # Perform comparison even with partial landmarks
+        if comparison_service is not None:
             try:
-                # Compare with reference
-                comparison_result = comparison_service.update_user_pose(pose_landmarks)
-
-                # Generate detailed feedback using LiveFeedbackService (internal LLM call)
-                # Returns processed feedback dict (NO OpenAI metadata)
-                feedback_data = generate_llm_feedback(image_data, comparison_result)
-
-                # Store in session data
-                current_session['pose_data'].append({
-                    'timestamp': time.time(),
-                    'pose_landmarks': pose_landmarks,
-                    'comparison_result': comparison_result
-                })
-
-                # Store complete feedback record for session summary (if feedback was generated)
-                # This data structure is used by FeedbackGenerationService.generate_session_summary()
-                if feedback_data:
-                    session_timestamp = time.time() - current_session['start_time'] if current_session['start_time'] else 0
-
-                    current_session['feedback_history'].append({
-                        # Required fields for session summary
-                        'timestamp': session_timestamp,  # Seconds from session start
-                        'feedback_text': feedback_data.get('feedback_text', ''),
-                        'severity': feedback_data.get('severity', 'medium'),
-                        'focus_areas': feedback_data.get('focus_areas', []),
-                        'similarity_score': comparison_result.get('combined_score', 0.0),
-                        'is_positive': feedback_data.get('is_positive', False),
-
-                        # Additional context for analysis
-                        'context': feedback_data.get('context', {})
-                    })
-
-                # Extract feedback text for immediate response
-                live_feedback = feedback_data.get('feedback_text', None) if feedback_data else None
-
-                # Add to scoring service
-                scoring_service.add_score(
-                    timestamp=time.time() - current_session['start_time'] if current_session['start_time'] else 0,
-                    combined_score=comparison_result.get('combined_score', 0.0),
-                    pose_score=comparison_result.get('pose_score', 0.0),
-                    motion_score=comparison_result.get('motion_score', 0.0),
-                    errors=[]
-                )
-
+                # Use video timestamp if available, otherwise use current time
+                current_timestamp = video_timestamp if video_timestamp is not None else time.time()
+                print(f"🎯 DEBUG: Using timestamp: {current_timestamp} (video: {video_timestamp})")
+                
+                # Compare with reference (handle partial landmarks gracefully)
+                if pose_landmarks is not None:
+                    print(f"🎯 DEBUG: Comparing with pose landmarks shape: {pose_landmarks.shape}")
+                    comparison_result = comparison_service.update_user_pose(pose_landmarks, current_timestamp)
+                else:
+                    print(f"🎯 DEBUG: No pose landmarks detected, creating minimal result")
+                    # Create a minimal result when no pose landmarks are detected
+                    comparison_result = {
+                        'combined_score': 0.0,
+                        'pose_score': 0.0,
+                        'motion_score': 0.0,
+                        'dtw_score': 0.0,
+                        'best_match_index': 0,
+                        'timestamp': current_timestamp
+                    }
             except Exception as e:
                 print(f"Error in pose comparison: {e}")
-                comparison_result = None
+                current_timestamp = video_timestamp if video_timestamp is not None else time.time()
+                comparison_result = {
+                    'combined_score': 0.0,
+                    'pose_score': 0.0,
+                    'motion_score': 0.0,
+                    'dtw_score': 0.0,
+                    'best_match_index': 0,
+                    'timestamp': current_timestamp
+                }
                 live_feedback = "Comparison unavailable"
+        else:
+            # Fallback when comparison service is not available
+            print(f"🎯 DEBUG: No comparison service available, creating fallback result")
+            current_timestamp = video_timestamp if video_timestamp is not None else time.time()
+            comparison_result = {
+                'combined_score': 0.5 if pose_landmarks is not None else 0.0,  # Give some credit if pose detected
+                'pose_score': 0.5 if pose_landmarks is not None else 0.0,
+                'motion_score': 0.0,
+                'dtw_score': 0.0,
+                'best_match_index': 0,
+                'timestamp': current_timestamp
+            }
+        
+        print(f"🎯 DEBUG: Comparison result: {comparison_result}")
 
-        # Create result
-        result = {
+        # Generate detailed feedback using LiveFeedbackService (internal LLM call)
+        # Returns processed feedback dict (NO OpenAI metadata)
+        feedback_data = generate_llm_feedback(image_data, comparison_result)
+
+        # Store in session data
+        current_session['pose_data'].append({
             'timestamp': time.time(),
+            'pose_landmarks': pose_landmarks,
+            'comparison_result': comparison_result
+        })
+
+        # Store complete feedback record for session summary (if feedback was generated)
+        # This data structure is used by FeedbackGenerationService.generate_session_summary()
+        if feedback_data:
+            session_timestamp = time.time() - current_session['start_time'] if current_session['start_time'] else 0
+
+            current_session['feedback_history'].append({
+                # Required fields for session summary
+                'timestamp': session_timestamp,  # Seconds from session start
+                'feedback_text': feedback_data.get('feedback_text', ''),
+                'severity': feedback_data.get('severity', 'medium'),
+                'focus_areas': feedback_data.get('focus_areas', []),
+                'similarity_score': comparison_result.get('combined_score', 0.0),
+                'is_positive': feedback_data.get('is_positive', False),
+
+                # Additional context for analysis
+                'context': feedback_data.get('context', {})
+            })
+
+        # Extract feedback text for immediate response
+        live_feedback = feedback_data.get('feedback_text', None) if feedback_data else None
+
+        # Add to scoring service
+        scoring_service.add_score(
+            timestamp=time.time() - current_session['start_time'] if current_session['start_time'] else 0,
+            combined_score=comparison_result.get('combined_score', 0.0),
+            pose_score=comparison_result.get('pose_score', 0.0),
+            motion_score=comparison_result.get('motion_score', 0.0),
+            errors=[]
+        )
+
+        # Create result with proper serialization
+        result = {
+            'timestamp': float(time.time()),
             'pose_landmarks': pose_landmarks.tolist() if pose_landmarks is not None else None,
             'hand_landmarks': [hand.tolist() for hand in hand_landmarks],
             'hand_classifications': hand_classifications,
-            'preprocessed_angles': preprocessed_angles,
+            'preprocessed_angles': {k: float(v) for k, v in preprocessed_angles.items()},
             'comparison_result': comparison_result,
             'live_feedback': live_feedback,
             'success': True
         }
+        
+        # Ensure comparison_result is properly serialized
+        if comparison_result is not None:
+            result['comparison_result'] = {
+                'combined_score': float(comparison_result.get('combined_score', 0.0)),
+                'pose_score': float(comparison_result.get('pose_score', 0.0)),
+                'motion_score': float(comparison_result.get('motion_score', 0.0)),
+                'dtw_score': float(comparison_result.get('dtw_score', 0.0)),
+                'best_match_index': int(comparison_result.get('best_match_index', 0)),
+                'timestamp': float(comparison_result.get('timestamp', time.time()))
+            }
 
         # Add to sequence for comparison
         if pose_landmarks is not None:
@@ -633,15 +751,41 @@ async def process_snapshot(request: ImageSnapshotRequest):
     Returns:
         ProcessSnapshotResponse: Detected poses, comparison results, and live feedback
     """
+    print(f"📸 Received snapshot request with image length: {len(request.image) if request.image else 0}")
+    print(f"📸 Video timestamp: {request.video_timestamp}")
+    
+    if not request.image:
+        return ProcessSnapshotResponse(
+            timestamp=time.time(),
+            pose_landmarks=None,
+            hand_landmarks=[],
+            hand_classifications=[],
+            preprocessed_angles={},
+            comparison_result=None,
+            live_feedback=None,
+            success=False,
+            error='No image data provided'
+        )
+
     try:
-        if not request.image:
-            raise HTTPException(status_code=400, detail='No image data provided')
-
-        result = process_image_snapshot(request.image)
+        result = process_image_snapshot(request.image, request.video_timestamp)
+        print(f"📸 Processed snapshot, returning result: {result.get('success', False)}")
         return ProcessSnapshotResponse(**result)
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"❌ Error in process_snapshot: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return ProcessSnapshotResponse(
+            timestamp=time.time(),
+            pose_landmarks=None,
+            hand_landmarks=[],
+            hand_classifications=[],
+            preprocessed_angles={},
+            comparison_result=None,
+            live_feedback=None,
+            success=False,
+            error=str(e)
+        )
 
 
 @app.get("/api/sessions/pose-sequence")

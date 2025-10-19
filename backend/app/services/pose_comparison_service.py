@@ -100,6 +100,10 @@ class PoseComparisonService:
     
     def _normalize_pose_by_scale(self, landmarks: np.ndarray) -> np.ndarray:
         """Normalize pose landmarks by shoulder width."""
+        # Handle empty or None landmarks
+        if landmarks is None or len(landmarks) == 0:
+            return np.array([])
+            
         # Filter to essential landmarks first
         landmarks = self._filter_essential_landmarks(landmarks)
         
@@ -111,28 +115,38 @@ class PoseComparisonService:
         # After filtering: [nose, left_shoulder, right_shoulder, ...]
         # Left shoulder: indices 3, 4, 5 (after filtering)
         # Right shoulder: indices 6, 7, 8 (after filtering)
-        left_shoulder = landmarks[3:6]
-        right_shoulder = landmarks[6:9]
-        
-        # Calculate shoulder width
-        shoulder_width = np.linalg.norm(left_shoulder - right_shoulder)
-        
-        if shoulder_width > 0:
-            # Normalize by shoulder width
-            normalized_landmarks = landmarks / shoulder_width
-            return normalized_landmarks
+        if len(landmarks) >= 9:  # Ensure we have both shoulders
+            left_shoulder = landmarks[3:6]
+            right_shoulder = landmarks[6:9]
+            
+            # Calculate shoulder width
+            shoulder_width = np.linalg.norm(left_shoulder - right_shoulder)
+            
+            if shoulder_width > 0:
+                # Normalize by shoulder width
+                normalized_landmarks = landmarks / shoulder_width
+                return normalized_landmarks
         
         return landmarks
     
     def _calculate_pose_similarity(self, user_landmarks: np.ndarray, 
                                  reference_landmarks: np.ndarray) -> float:
         """Calculate cosine similarity between user and reference poses."""
+        # Handle empty or None landmarks
+        if user_landmarks is None or len(user_landmarks) == 0:
+            return 0.0
+        if reference_landmarks is None or len(reference_landmarks) == 0:
+            return 0.0
+            
         # Normalize both poses
         user_normalized = self._normalize_pose_by_scale(user_landmarks)
         ref_normalized = self._normalize_pose_by_scale(reference_landmarks)
         
         # Ensure same dimensions
         min_length = min(len(user_normalized), len(ref_normalized))
+        if min_length == 0:
+            return 0.0
+            
         user_vec = user_normalized[:min_length]
         ref_vec = ref_normalized[:min_length]
         
@@ -275,11 +289,15 @@ class PoseComparisonService:
         if timestamp is None:
             timestamp = time.time()
         
+        print(f"🔄 DEBUG: update_user_pose called with landmarks shape: {user_landmarks.shape if user_landmarks is not None else 'None'}, timestamp: {timestamp}")
+        
         # Add to pose history
         self.user_pose_history.append({
             'landmarks': user_landmarks.copy(),
             'timestamp': timestamp
         })
+        
+        print(f"🔄 DEBUG: Pose history length: {len(self.user_pose_history)}")
         
         # Calculate motion if we have at least 2 poses
         user_motion = None
@@ -294,9 +312,13 @@ class PoseComparisonService:
             user_landmarks, user_motion
         )
         
+        print(f"🎯 DEBUG: Best match - idx: {best_match_idx}, pose_score: {pose_score:.3f}, motion_score: {motion_score:.3f}")
+        
         # Calculate combined score using config weights
         combined_score = (self.config.pose_weight * pose_score + 
                          self.config.motion_weight * motion_score)
+        
+        print(f"🎯 DEBUG: Combined score: {combined_score:.3f} (weights: pose={self.config.pose_weight}, motion={self.config.motion_weight})")
         
         # Apply DTW if enabled, enough data, and time has passed
         dtw_score = 0.0
@@ -305,11 +327,13 @@ class PoseComparisonService:
             len(self.user_pose_history) >= 10 and 
             timestamp - self.last_dtw_time > self.dtw_interval):
             
+            print(f"🔄 DEBUG: Applying DTW - user_seq_len: {len(self.user_pose_history)}, ref_seq_len: {len(self.reference_landmarks)}")
             user_sequence = [pose['landmarks'] for pose in self.user_pose_history]
             ref_sequence = self.reference_landmarks
             
             dtw_score, dtw_path = self._apply_dynamic_time_warping(user_sequence, ref_sequence)
             self.last_dtw_time = timestamp
+            print(f"🎯 DEBUG: DTW score: {dtw_score:.3f}, path length: {len(dtw_path)}")
         
         # Add to similarity scores for smoothing
         self.similarity_scores.append({

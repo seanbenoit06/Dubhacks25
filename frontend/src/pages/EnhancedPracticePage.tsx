@@ -41,6 +41,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   const [countdown, setCountdown] = useState<number | null>(null);
   const [currentFeedback, setCurrentFeedback] = useState<ProcessSnapshotResponse | null>(null);
   const [overallAccuracy, setOverallAccuracy] = useState(0);
+  const [accuracyHistory, setAccuracyHistory] = useState<number[]>([]);
   const [showCongratulations, setShowCongratulations] = useState(false);
   const [videoEnded, setVideoEnded] = useState(false);
   const [autoNavigateCountdown, setAutoNavigateCountdown] = useState(5);
@@ -77,8 +78,10 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
 
   // Handle video time update (ignore during seeking)
   const handleVideoTimeUpdate = (time: number) => {
+    console.log('🎬 DEBUG: Video time update:', time, 'isSeeking:', isSeeking);
     if (!isSeeking) {
       setVideoCurrentTime(time);
+      console.log('🎬 DEBUG: Updated videoCurrentTime to:', time);
       
       // Check if video has ended
       if (videoDuration > 0 && time >= videoDuration - 0.1 && !videoEnded) {
@@ -162,21 +165,37 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
       return;
     }
     
-    console.log('✅ handleSnapshot processing:', { hasStarted, isSessionActive, isCapturing });
+    // Don't process snapshots when video is paused or not capturing
+    if (!isPlaying) {
+      console.log('❌ Video is paused, skipping snapshot processing');
+      return;
+    }
+    if (!isCapturing) {
+      console.log('❌ Capture is disabled, skipping snapshot processing');
+      return;
+    }
+    
+    console.log('✅ handleSnapshot processing:', { hasStarted, isSessionActive, isCapturing, isPlaying });
 
     try {
       // Process with real backend API
       let feedback;
       if (isSessionActive) {
         console.log('Processing snapshot with backend API');
-        feedback = await processSnapshot(snapshot);
+        // Use videoCurrentTime if available, otherwise use a fallback
+        const timestamp = videoCurrentTime > 0 ? videoCurrentTime : Date.now() / 1000;
+        console.log('📸 DEBUG: Sending snapshot with video timestamp:', timestamp, '(videoCurrentTime:', videoCurrentTime, ')');
+        feedback = await processSnapshot(snapshot, timestamp);
       } else {
         // Try to start session if not active
         console.log('Session not active, attempting to start session...');
         try {
           await startDanceSession();
           await loadReferenceVideo(routine.title.toLowerCase());
-          feedback = await processSnapshot(snapshot);
+          // Use videoCurrentTime if available, otherwise use a fallback
+          const timestamp = videoCurrentTime > 0 ? videoCurrentTime : Date.now() / 1000;
+          console.log('📸 DEBUG: Sending snapshot with video timestamp:', timestamp, '(videoCurrentTime:', videoCurrentTime, ')');
+          feedback = await processSnapshot(snapshot, timestamp);
         } catch (error) {
           console.log('Failed to start session:', error);
           // Don't use mock feedback - just return without processing
@@ -188,10 +207,24 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
       
       // Update overall accuracy based on combined score
       console.log('🔍 Checking comparison_result:', feedback.comparison_result);
+      console.log('📊 DEBUG: Feedback received - success:', feedback.success, 'error:', feedback.error);
+      
       if (feedback.comparison_result) {
+        console.log('📊 DEBUG: Comparison scores - combined:', feedback.comparison_result.combined_score, 'pose:', feedback.comparison_result.pose_score, 'motion:', feedback.comparison_result.motion_score);
         const newAccuracy = Math.round(feedback.comparison_result.combined_score * 100);
         console.log('📊 Setting accuracy to:', newAccuracy);
-        setOverallAccuracy(newAccuracy);
+        
+        // Update overall accuracy based on combined score (running average)
+        setAccuracyHistory(prev => {
+          const updatedHistory = [...prev, newAccuracy];
+          const recentHistory = updatedHistory.slice(-10); // Keep only last 10 scores
+          const averageAccuracy = Math.round(
+            recentHistory.reduce((sum, acc) => sum + acc, 0) / recentHistory.length
+          );
+          console.log('📊 Updated accuracy history:', recentHistory, 'average:', averageAccuracy);
+          setOverallAccuracy(averageAccuracy);
+          return recentHistory;
+        });
       } else {
         console.log('❌ No comparison_result, keeping accuracy at:', overallAccuracy);
       }
