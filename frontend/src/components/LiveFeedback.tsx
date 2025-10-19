@@ -14,31 +14,23 @@ export function LiveFeedback({ overallAccuracy, currentTip, isPlaying }: LiveFee
   const [messageId, setMessageId] = useState(0);
 
   useEffect(() => {
-    if (!isPlaying) return;
-
-    const interval = setInterval(() => {
-      // Simulate feedback messages appearing
-      const messages = [
-        { message: '🔥 Great posture!', type: 'success' as const },
-        { message: '✨ Perfect timing!', type: 'success' as const },
-        { message: 'Keep your arms higher', type: 'tip' as const },
-        { message: 'Sync with the beat', type: 'warning' as const },
-      ];
-      
-      const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    // Only show real feedback from currentTip, not simulated messages
+    if (currentTip && currentTip.message) {
       const newId = messageId + 1;
       setMessageId(newId);
       
-      setFeedbackMessages((prev) => [...prev, { id: newId, ...randomMessage }]);
+      setFeedbackMessages((prev) => [...prev, { 
+        id: newId, 
+        message: currentTip.message, 
+        type: 'tip' as const 
+      }]);
 
       // Remove message after 3 seconds
       setTimeout(() => {
         setFeedbackMessages((prev) => prev.filter((msg) => msg.id !== newId));
       }, 3000);
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [isPlaying, messageId]);
+    }
+  }, [currentTip, messageId]);
 
   const getAccuracyColor = () => {
     if (overallAccuracy >= 80) return 'text-green-400';

@@ -10,9 +10,9 @@ import { LiveCameraView } from '../components/LiveCameraView';
 import { LiveFeedback } from '../components/LiveFeedback';
 import { PracticeControlBar } from '../components/PracticeControlBar';
 // Removed useVideoBeatSync - using time-based progress instead
-import { useSnapshotCapture } from '../hooks/useSnapshotCapture';
+// Removed useSnapshotCapture - using LiveCameraView directly
 import { useDanceSession } from '../hooks/useDanceSession';
-import { mockFeedbackService, MockFeedbackResponse } from '../services/mockFeedbackService';
+// Removed mock feedback service - using real backend
 import { ProcessSnapshotResponse } from '../services/danceAPI';
 
 interface EnhancedPracticePageProps {
@@ -40,13 +40,13 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   const [hasStarted, setHasStarted] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [currentFeedback, setCurrentFeedback] = useState<ProcessSnapshotResponse | null>(null);
-  const [overallAccuracy, setOverallAccuracy] = useState(82);
+  const [overallAccuracy, setOverallAccuracy] = useState(0);
   const [showCongratulations, setShowCongratulations] = useState(false);
   const [videoEnded, setVideoEnded] = useState(false);
   const [autoNavigateCountdown, setAutoNavigateCountdown] = useState(5);
 
   // Video reference
-  const videoSrc = `/src/data/${routine?.title.toLowerCase()}.mp4`; // Video files in frontend/src/data
+  const videoSrc = `/videos/magnetic.mp4`; // Video file in public folder
 
   if (!routine) {
     return <div>Routine not found</div>;
@@ -140,26 +140,8 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
     // For now, we'll just update the cursor
   };
 
-  // Use snapshot capture hook
-  const {
-    captureSnapshot,
-    processQueue,
-    queueStatus,
-    isCapturing,
-    startAutoCapture,
-    stopAutoCapture,
-    pauseProcessing,
-    resumeProcessing
-  } = useSnapshotCapture({
-    autoCapture: isPlaying && hasStarted,
-    captureInterval: 500,
-    onSnapshotProcessed: (result) => {
-      console.log('Snapshot processed:', result);
-    },
-    onError: (error) => {
-      console.error('Snapshot error:', error);
-    }
-  });
+  // Simple state for auto-capture
+  const [isCapturing, setIsCapturing] = useState(false);
 
   // Dance session hook
   const {
@@ -174,18 +156,44 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
 
   // Handle camera snapshot
   const handleSnapshot = async (snapshot: string) => {
-    if (!hasStarted || !isSessionActive) return;
+    console.log('🚀 handleSnapshot called with snapshot length:', snapshot.length);
+    if (!hasStarted) {
+      console.log('❌ hasStarted is false, returning early');
+      return;
+    }
+    
+    console.log('✅ handleSnapshot processing:', { hasStarted, isSessionActive, isCapturing });
 
     try {
       // Process with real backend API
-      const feedback = await processSnapshot(snapshot);
+      let feedback;
+      if (isSessionActive) {
+        console.log('Processing snapshot with backend API');
+        feedback = await processSnapshot(snapshot);
+      } else {
+        // Try to start session if not active
+        console.log('Session not active, attempting to start session...');
+        try {
+          await startDanceSession();
+          await loadReferenceVideo(routine.title.toLowerCase());
+          feedback = await processSnapshot(snapshot);
+        } catch (error) {
+          console.log('Failed to start session:', error);
+          // Don't use mock feedback - just return without processing
+          return;
+        }
+      }
 
       setCurrentFeedback(feedback);
       
       // Update overall accuracy based on combined score
+      console.log('🔍 Checking comparison_result:', feedback.comparison_result);
       if (feedback.comparison_result) {
         const newAccuracy = Math.round(feedback.comparison_result.combined_score * 100);
+        console.log('📊 Setting accuracy to:', newAccuracy);
         setOverallAccuracy(newAccuracy);
+      } else {
+        console.log('❌ No comparison_result, keeping accuracy at:', overallAccuracy);
       }
 
       console.log('Feedback received:', feedback);
@@ -207,18 +215,17 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
 
   // Control capture based on play/pause state
   useEffect(() => {
+    console.log('Capture control effect:', { hasStarted, isPlaying, videoEnded, isCapturing });
     if (hasStarted && !videoEnded) {
       if (isPlaying) {
-        console.log('Video playing - resuming capture');
-        resumeProcessing();
-        startAutoCapture();
+        console.log('Video playing - starting capture');
+        setIsCapturing(true);
       } else {
-        console.log('Video paused - pausing capture');
-        pauseProcessing();
-        stopAutoCapture();
+        console.log('Video paused - stopping capture');
+        setIsCapturing(false);
       }
     }
-  }, [isPlaying, hasStarted, videoEnded, resumeProcessing, pauseProcessing, startAutoCapture, stopAutoCapture]);
+  }, [isPlaying, hasStarted, videoEnded]);
 
   const handleStart = async () => {
     setCountdown(3);
@@ -235,10 +242,12 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
     
     if (countdown === 0) {
       setTimeout(() => {
+        console.log('Countdown finished - starting practice');
         setCountdown(null);
         setHasStarted(true);
         setIsPlaying(true);
-        startAutoCapture();
+        setIsCapturing(true);
+        console.log('Practice started - hasStarted:', true, 'isPlaying:', true, 'isCapturing:', true);
       }, 500);
       return;
     }
@@ -248,7 +257,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [countdown, startAutoCapture]);
+  }, [countdown]);
 
   // Test backend connection on mount
   useEffect(() => {
@@ -256,11 +265,13 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   }, [testBackendConnection]);
 
   // Generate current tip from feedback
+  console.log('🔍 Generating currentTip from currentFeedback:', currentFeedback);
   const currentTip: PracticeTip | undefined = currentFeedback?.live_feedback ? {
     joint: 'General',
     message: currentFeedback.live_feedback,
     beatIndex: Math.floor(videoCurrentTime * 2), // Convert time to approximate beat index
   } : undefined;
+  console.log('📝 Generated currentTip:', currentTip);
 
   return (
     <div className="relative h-screen w-full overflow-hidden" style={{ backgroundImage: "linear-gradient(rgb(11, 14, 22) 0%, rgb(15, 18, 25) 50%, rgb(18, 22, 38) 100%), linear-gradient(90deg, rgb(255, 255, 255) 0%, rgb(255, 255, 255) 100%)" }}>
@@ -506,6 +517,22 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
                   showMirrorButton={true}
                   mirrorButtonPosition="top-right"
                 />
+                {/* Debug info */}
+                {console.log('LiveCameraView props:', { hasStarted, isCapturing, autoSnapshot: hasStarted && isCapturing })}
+                
+                {/* Manual test button */}
+                {hasStarted && (
+                  <button
+                    onClick={() => {
+                      console.log('🧪 Manual test button clicked');
+                      // Test if handleSnapshot works
+                      handleSnapshot('data:image/jpeg;base64,test');
+                    }}
+                    className="absolute bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded z-10"
+                  >
+                    Test Snapshot
+                  </button>
+                )}
               </div>
               <div aria-hidden="true" className="absolute border-[0.8px] border-[rgba(255,255,255,0.05)] border-solid inset-0 pointer-events-none rounded-[10px]" />
             </div>

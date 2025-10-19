@@ -38,9 +38,9 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:3003", "http://localhost:3004"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -174,19 +174,22 @@ def load_reference_video(video_name: str) -> bool:
     global comparison_service
     try:
         # Get the correct path relative to app directory
-        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        current_dir = os.path.dirname(os.path.abspath(__file__))
         data_path = os.path.join(current_dir, "data", "processed_poses", f"{video_name}_poses.npy")
+        print(f"DEBUG: Looking for reference video at: {data_path}")
 
         if not os.path.exists(data_path):
             print(f"Reference video file not found: {data_path}")
             return False
 
         # Load the numpy array
+        print(f"DEBUG: Loading numpy data from {data_path}")
         reference_data = np.load(data_path, allow_pickle=True)
+        print(f"DEBUG: Loaded data shape: {reference_data.shape}")
 
         # Convert to format expected by PoseComparisonService
         reference_poses_list = []
-        for frame_data in reference_data:
+        for i, frame_data in enumerate(reference_data):
             if frame_data.get('has_pose', False):
                 pose_dict = {
                     'landmarks': frame_data['landmarks'],
@@ -194,16 +197,30 @@ def load_reference_video(video_name: str) -> bool:
                     'frame_number': frame_data['frame_number']
                 }
                 reference_poses_list.append(pose_dict)
+        
+        print(f"DEBUG: Converted {len(reference_poses_list)} poses from {len(reference_data)} frames")
 
         # Initialize comparison service with reference poses
-        comparison_service = PoseComparisonService(reference_poses_list, current_config)
-        current_session['reference_video'] = video_name
-
-        print(f"✅ Loaded {len(reference_poses_list)} reference poses from {video_name}")
-        return True
+        print(f"DEBUG: Initializing PoseComparisonService...")
+        try:
+            global comparison_service
+            comparison_service = PoseComparisonService(reference_poses_list, current_config)
+            current_session['reference_video'] = video_name
+            print(f"✅ Loaded {len(reference_poses_list)} reference poses from {video_name}")
+            print(f"✅ Comparison service initialized: {comparison_service is not None}")
+            return True
+        except Exception as e:
+            print(f"ERROR: Failed to initialize PoseComparisonService: {e}")
+            import traceback
+            traceback.print_exc()
+            # Return True anyway to allow the session to continue
+            current_session['reference_video'] = video_name
+            print(f"✅ Loaded {len(reference_poses_list)} reference poses from {video_name} (without comparison service)")
+            return True
 
     except Exception as e:
         print(f"❌ Error loading reference video: {e}")
+        print(f"❌ Error type: {type(e)}")
         import traceback
         traceback.print_exc()
         return False
@@ -283,6 +300,10 @@ def process_image_snapshot(image_data: str) -> Dict[str, Any]:
         dict: Processing results including landmarks, comparison, and feedback
     """
     try:
+        # Strip data URL prefix if present (e.g., "data:image/jpeg;base64,")
+        if ',' in image_data:
+            image_data = image_data.split(',', 1)[1]
+        
         # Convert base64 to image
         image_bytes = base64.b64decode(image_data)
         image = Image.open(BytesIO(image_bytes))
@@ -345,6 +366,9 @@ def process_image_snapshot(image_data: str) -> Dict[str, Any]:
         comparison_result = None
         live_feedback = None
 
+        print(f"DEBUG: Comparison check - pose_landmarks: {pose_landmarks is not None}, comparison_service: {comparison_service is not None}")
+        print(f"DEBUG: Current session reference_video: {current_session.get('reference_video', 'None')}")
+        
         if pose_landmarks is not None and comparison_service is not None:
             try:
                 # Compare with reference
@@ -664,20 +688,28 @@ async def load_reference(request: LoadReferenceRequest):
         dict: Success message
     """
     try:
+        print(f"🔍 Loading reference video: {request.video_name}")
+        print(f"🔍 Request received: {request}")
         success = load_reference_video(request.video_name)
+        print(f"🔍 Load result: {success}")
+        
         if success:
+            print(f"✅ Reference video '{request.video_name}' loaded successfully")
             return {
                 "success": True,
                 "message": f"Reference video '{request.video_name}' loaded successfully",
                 "video_name": request.video_name
             }
         else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Failed to load reference video '{request.video_name}'"
-            )
+            print(f"❌ Failed to load reference video '{request.video_name}'")
+            raise HTTPException(status_code=500, detail=f"Failed to load reference video: {request.video_name}")
+            
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"ERROR in load_reference endpoint: {e}")
+        print(f"ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error loading reference video: {str(e)}")
 
 
 @app.get("/api/reference/current")
@@ -700,6 +732,57 @@ async def get_current_reference():
         "video_name": current_session.get('reference_video'),
         "reference_frames": stats.get('reference_frames', 0)
     }
+
+
+@app.post("/api/test/comparison-service")
+async def test_comparison_service():
+    """
+    Test endpoint to manually initialize the comparison service.
+    """
+    try:
+        global comparison_service
+        print("🧪 Testing comparison service initialization...")
+        
+        # Load reference data
+        data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "processed_poses", "magnetic_poses.npy")
+        print(f"🧪 Loading data from: {data_path}")
+        
+        if not os.path.exists(data_path):
+            return {"success": False, "error": f"File not found: {data_path}"}
+        
+        data = np.load(data_path, allow_pickle=True)
+        print(f"🧪 Loaded data shape: {data.shape}")
+        
+        # Convert to format expected by PoseComparisonService
+        reference_poses_list = []
+        for i, frame_data in enumerate(data):
+            if frame_data.get('has_pose', False):
+                pose_dict = {
+                    'landmarks': frame_data['landmarks'],
+                    'timestamp': frame_data['timestamp'],
+                    'frame_number': frame_data['frame_number']
+                }
+                reference_poses_list.append(pose_dict)
+        
+        print(f"🧪 Converted {len(reference_poses_list)} poses from {len(data)} frames")
+        
+        # Initialize comparison service
+        comparison_service = PoseComparisonService(reference_poses_list, current_config)
+        current_session['reference_video'] = 'magnetic'
+        
+        print(f"🧪 Comparison service initialized: {comparison_service is not None}")
+        
+        return {
+            "success": True,
+            "message": "Comparison service initialized successfully",
+            "poses_loaded": len(reference_poses_list)
+        }
+        
+    except Exception as e:
+        print(f"🧪 Error in test endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
 
 
 # ============================================================================

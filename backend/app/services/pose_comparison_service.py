@@ -3,7 +3,12 @@ import cv2
 import mediapipe as mp
 from typing import List, Dict, Any, Tuple, Optional
 import math
-from dtaidistance import dtw
+try:
+    from dtaidistance import dtw
+    DTW_AVAILABLE = True
+except ImportError:
+    print("Warning: dtaidistance not available, DTW disabled")
+    DTW_AVAILABLE = False
 import time
 from collections import deque
 from .pose_comparison_config import PoseComparisonConfig, DEFAULT_CONFIG
@@ -247,7 +252,11 @@ class PoseComparisonService:
             ref_flat = ref_seq_array.flatten().astype(np.float64)
             
             # Calculate DTW distance using the distance_fast method
-            distance = dtw.distance_fast(user_flat, ref_flat)
+            if DTW_AVAILABLE:
+                distance = dtw.distance_fast(user_flat, ref_flat)
+            else:
+                # Fallback to simple Euclidean distance
+                distance = np.linalg.norm(user_flat - ref_flat)
             
             # Convert distance to similarity score (0-1)
             # Normalize by the maximum possible distance (sum of sequence lengths)

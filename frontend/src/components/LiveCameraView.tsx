@@ -123,6 +123,7 @@ export function LiveCameraView({
             await videoElement.play();
             console.log('Video playing successfully');
             if (mounted) {
+              console.log('Setting cameraReady to true');
               setCameraReady(true);
             }
           } catch (playError) {
@@ -170,8 +171,9 @@ export function LiveCameraView({
 
   // Snapshot capture function
   const captureSnapshot = (): string | null => {
+    console.log('📷 captureSnapshot called');
     if (!videoRef.current || !canvasRef.current) {
-      console.warn('Video or canvas not ready for snapshot');
+      console.warn('❌ Video or canvas not ready for snapshot');
       return null;
     }
 
@@ -179,8 +181,16 @@ export function LiveCameraView({
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     
+    console.log('📺 Video state:', {
+      videoWidth: video.videoWidth,
+      videoHeight: video.videoHeight,
+      readyState: video.readyState,
+      paused: video.paused,
+      ended: video.ended
+    });
+    
     if (!ctx) {
-      console.warn('Canvas context not available');
+      console.warn('❌ Canvas context not available');
       return null;
     }
 
@@ -195,36 +205,64 @@ export function LiveCameraView({
     }
 
     // Draw video frame to canvas
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    try {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      console.log('✅ Video frame drawn to canvas');
+    } catch (error) {
+      console.error('❌ Error drawing video to canvas:', error);
+      return null;
+    }
 
     // Convert to base64 data URL
-    const dataURL = canvas.toDataURL('image/jpeg', 0.8); // 0.8 quality for smaller file size
-    
-    return dataURL;
+    try {
+      const dataURL = canvas.toDataURL('image/jpeg', 0.8); // 0.8 quality for smaller file size
+      console.log('✅ Canvas converted to data URL, length:', dataURL.length);
+      return dataURL;
+    } catch (error) {
+      console.error('❌ Error converting canvas to data URL:', error);
+      return null;
+    }
   };
 
   // Auto-snapshot functionality
   useEffect(() => {
+    console.log('LiveCameraView auto-snapshot effect:', { autoSnapshot, cameraReady, onSnapshot: !!onSnapshot });
+    console.log('Auto-snapshot conditions:', { autoSnapshot, cameraReady, hasOnSnapshot: !!onSnapshot });
+    
     if (autoSnapshot && cameraReady && onSnapshot) {
+      // Prevent creating multiple intervals
+      if (snapshotIntervalRef.current) {
+        console.log('Interval already exists, skipping...');
+        return;
+      }
+      console.log('Starting auto-snapshot interval with interval:', snapshotInterval);
       // Start auto-snapshot interval
       snapshotIntervalRef.current = setInterval(() => {
+        console.log('🔄 Interval callback executing...');
         const snapshot = captureSnapshot();
+        console.log('📸 Snapshot result:', snapshot ? `Length: ${snapshot.length}` : 'null');
         if (snapshot) {
+          console.log('✅ Auto-snapshot captured, calling onSnapshot');
           onSnapshot(snapshot);
+        } else {
+          console.log('❌ Snapshot capture failed');
         }
       }, snapshotInterval);
 
       return () => {
         if (snapshotIntervalRef.current) {
+          console.log('Clearing interval (cleanup)');
           clearInterval(snapshotIntervalRef.current);
+          snapshotIntervalRef.current = null;
         }
       };
     } else if (snapshotIntervalRef.current) {
       // Clear interval if auto-snapshot is disabled
+      console.log('Clearing interval (auto-snapshot disabled)');
       clearInterval(snapshotIntervalRef.current);
       snapshotIntervalRef.current = null;
     }
-  }, [autoSnapshot, cameraReady, onSnapshot, snapshotInterval, mirrorCamera]);
+  }, [autoSnapshot, cameraReady, snapshotInterval, mirrorCamera]);
 
   // Manual snapshot function (can be called externally)
   const takeSnapshot = (): string | null => {

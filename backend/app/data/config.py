@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # Server Configuration
     host: str = "0.0.0.0"
     port: int = 8000
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins: str = "http://localhost:5173,http://localhost:3000,http://localhost:3003,http://localhost:3004"
 
     # Application Settings
     max_session_duration: int = 3600  # seconds
