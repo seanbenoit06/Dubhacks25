@@ -1,8 +1,74 @@
-# Live Feedback Generation Architecture
+# Backend Architecture
 
 ## Overview
 
-This document describes the architecture for the **Live Feedback Generation System** - a real-time feedback interface that generates LLM-powered guidance every 0.5 seconds during active dancing.
+This document describes the complete architecture for the **K-Pop Dance Trainer Backend** - a real-time pose analysis and feedback system.
+
+**Status:** ✅ Production Ready (Post-Cleanup)
+**Last Updated:** 2025-01-18
+**Version:** 2.0
+
+For complete process flow, see: `COMPLETE_BACKEND_FLOW.md`
+For security requirements, see: `SECURITY.md`
+
+---
+
+## 📁 Clean File Structure
+
+```
+backend/
+├── app/
+│   ├── main.py                          # ⭐ UNIFIED API (FastAPI)
+│   ├── data/
+│   │   ├── config.py                    # Configuration
+│   │   └── processed_poses/             # Reference videos (.npy)
+│   └── services/                        # Internal services
+│       ├── pose_comparison_service.py   # Core comparison
+│       ├── pose_comparison_config.py    # Comparison config
+│       ├── live_feedback_service.py     # Real-time AI (OpenAI Vision)
+│       ├── feedback_generation.py       # Summary AI (OpenAI Text)
+│       ├── scoring.py                   # Score tracking
+│       ├── angle_calculator.py          # Joint angles
+│       ├── pose_extraction.py           # Preprocessing
+│       ├── pose_normalization.py        # Preprocessing
+│       └── process_video_pose.py        # Preprocessing
+└── tests/                               # Test files
+```
+
+**Files Removed (Cleanup):**
+- ❌ `comparison_engine.py` - Empty duplicate
+- ❌ `livepose.py` - Duplicate FastAPI app
+- ❌ `dance_session_client.py` - Test client
+- ❌ `test_client.py` - Test client
+- ❌ `webcam_comparison.py` - Demo script
+
+---
+
+## 🏗️ Architecture Layers
+
+### **1. API Layer (main.py)**
+- Single unified FastAPI application
+- 15 REST endpoints organized by domain
+- Calls internal services
+- Returns ONLY processed data (no LLM metadata)
+
+### **2. Services Layer (Internal)**
+- Never exposed to API
+- Encapsulated business logic
+- LLM services (OpenAI) are internal only
+
+### **3. Data Layer**
+- Configuration from `.env`
+- Reference poses from `.npy` files
+- Session state in memory
+
+---
+
+# Live Feedback Generation System
+
+## Overview
+
+Real-time feedback interface that generates LLM-powered guidance every 0.5 seconds during active dancing.
 
 ## System Components
 
