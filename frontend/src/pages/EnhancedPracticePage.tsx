@@ -40,7 +40,7 @@ export function EnhancedPracticePage({ routineId, onBack, onReview, onSettings }
   const [overallAccuracy, setOverallAccuracy] = useState(82);
 
   // Video reference
-  const videoSrc = `/videos/${routine?.title.toLowerCase()}.mp4`; // Assuming video files in public/videos
+  const videoSrc = `/src/data/${routine?.title.toLowerCase()}.mp4`; // Video files in frontend/src/data
 
   if (!routine) {
     return <div>Routine not found</div>;
