@@ -15,10 +15,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from pose_comparison_service import PoseComparisonService
+    from pose_comparison_config import PoseComparisonConfig
     from dtaidistance import dtw
     print("✅ Successfully imported all required modules")
 except ImportError as e:
     print(f"❌ Import error: {e}")
+    print("Make sure you have installed: pip install numpy mediapipe dtaidistance")
     sys.exit(1)
 
 class PoseComparisonTester:
@@ -240,16 +242,16 @@ class PoseComparisonTester:
         except Exception as e:
             self.log_test("PoseComparisonService Default Init", False, f"Exception: {e}")
         
-        # Test 2: Custom parameters
+        # Test 2: Custom parameters via config
         try:
-            service = PoseComparisonService(
-                mock_reference_data,
+            custom_config = PoseComparisonConfig(
                 pose_weight=0.8,
                 motion_weight=0.2,
                 smoothing_window=10
             )
+            service = PoseComparisonService(mock_reference_data, custom_config)
             self.log_test(
-                "PoseComparisonService Custom Params", 
+                "PoseComparisonService Custom Params",
                 service is not None,
                 "Service initialized with custom parameters"
             )
@@ -268,10 +270,12 @@ class PoseComparisonTester:
             landmarks = np.random.rand(99)  # 33 landmarks * 3 coordinates (x,y,z)
             normalized = service._normalize_pose_by_scale(landmarks)
             
+            # After filtering, we expect 69 coordinates (23 essential landmarks * 3)
+            expected_shape = (69,)
             self.log_test(
                 "Pose Normalization Basic", 
-                normalized.shape == landmarks.shape,
-                f"Shape: {normalized.shape}, Expected: {landmarks.shape}"
+                normalized.shape == expected_shape,
+                f"Shape: {normalized.shape}, Expected: {expected_shape}"
             )
             
             # Test 2: Check if normalization is scale-invariant
