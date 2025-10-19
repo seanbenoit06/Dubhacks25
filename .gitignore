@@ -67,9 +67,6 @@ uploads/
 *.avi
 *.mov
 
-# Exception: Allow reference videos in frontend/src/data/
-!frontend/src/data/*.mp4
-
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
